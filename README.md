@@ -88,7 +88,7 @@ python3 scripts/ws-call.py initialize
 python3 scripts/ws-call.py tools/list
 
 # List first 3 integrations
-python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":3}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print(json.dumps(j['result']['content']['items'][:3], indent=2))"
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":3}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print(json.dumps(j['result']['items'][:3], indent=2))"
 
 # Search integrations for "order" and "customer"
 python3 scripts/ws-call.py tools/call '{"name":"list_integrations_search","arguments":{"terms":["order","customer"],"perPage":100,"maxPages":30}}'
@@ -109,23 +109,26 @@ python3 scripts/ws-call.py tools/call '{"name":"export_integration","arguments":
 python3 scripts/ws-call.py tools/call '{"name":"summarize_flow_controls","arguments":{"identifier":"CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN"}}'
 
 # List connections
-python3 scripts/ws-call.py tools/call '{"name":"list_connections","arguments":{"limit":5}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print(json.dumps(j['result']['content']['items'][:3], indent=2))"
+python3 scripts/ws-call.py tools/call '{"name":"list_connections","arguments":{"limit":5}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print(json.dumps(j['result']['items'][:3], indent=2))"
 ```
 
 **Note**: All responses are in JSON format. 
 - For `tools/list`, the structure is `{"jsonrpc": "2.0", "id": 1, "result": {"tools": [...]}}`
-- For tool calls like `list_integrations`, the structure is `{"jsonrpc": "2.0", "id": 1, "result": {"content": {"items": [...], "totalResults": N, "hasMore": bool}}}`
+- For tool calls like `list_integrations`, the structure is `{"jsonrpc": "2.0", "id": 1, "result": {"items": [...], "totalResults": N, "hasMore": bool}}}`
 
 **Example JSON parsing:**
 ```bash
 # Get first 2 integrations
-python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print(json.dumps(j['result']['content']['items'][:2], indent=2))"
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print(json.dumps(j['result']['items'][:2], indent=2))"
 
 # Get total count
-python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print('Total integrations:', j['result']['content']['totalResults'])"
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print('Total integrations:', j['result']['totalResults'])"
 
 # Get items count
-python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print('Items returned:', len(j['result']['content']['items']))"
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print('Items returned:', len(j['result']['items']))"
+
+# Get integration name
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":1}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print('Integration name:', j['result']['items'][0]['name'])"
 ```
 
 ## Configuration (.env)
