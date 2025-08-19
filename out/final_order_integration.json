@@ -1,0 +1,163 @@
+{
+  "integration": {
+    "code": "CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN",
+    "name": "CL_CUS_ORD_PAY_CLDB_TO_ORACLE_APP_INTG",
+    "version": "01.00.0002",
+    "status": "ACTIVATED",
+    "pattern": "Orchestration",
+    "trigger": {
+      "role": "SOURCE",
+      "connectionId": "CL_REST_CONN",
+      "agentRequired": false,
+      "adapter": null,
+      "privateEndpoint": false
+    },
+    "targets": [
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "PRESEEDED_COLLOCATED_CONN_1741",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      },
+      {
+        "role": "TARGET",
+        "connectionId": "CL_ATP_DB_CONN",
+        "agentRequired": false,
+        "adapter": null,
+        "privateEndpoint": false
+      }
+    ],
+    "trackingVariables": [
+      {
+        "name": "customer_ref_id",
+        "primary": true,
+        "xpath": "/execute/request-wrapper/customer/customer_ref_id"
+      },
+      {
+        "name": "source_order_no",
+        "primary": false,
+        "xpath": "/execute/request-wrapper/order/source_order_no"
+      },
+      {
+        "name": "customer_acct_num",
+        "primary": false,
+        "xpath": "/execute/request-wrapper/order_payment/customer_acct_num"
+      }
+    ],
+    "links": [
+      {
+        "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/integrations/CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN%7C01.00.0002?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+        "rel": "self"
+      },
+      {
+        "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/integrations/CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN%7C01.00.0002?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+        "rel": "canonical"
+      }
+    ]
+  },
+  "counts": {
+    "endPoints": 17,
+    "trackingVariables": 3
+  },
+  "outline": null,
+  "export": null
+}

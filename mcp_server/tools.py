@@ -634,12 +634,28 @@ async def _call_summarize_step_io(params: dict[str, Any]) -> Any:
 		return {"step": {}, "io": {}}
 	d = _to_design(details)
 	steps = _find_nodes_by_name(d, params["stepName"], 1)
-	if not steps:
-		return {"step": {}, "io": {}}
-	step = steps[0]
-	# Try to infer associated endpoint by matching name
 	endpoints = d.get("endPoints") or []
 	ep = next((e for e in endpoints if str(e.get("name")).lower() == params["stepName"].lower()), None)
+
+	if not steps:
+		# Fallback: treat endpoint as step if found
+		if ep:
+			conn = ep.get("connection") or {}
+			return {
+				"step": {"name": ep.get("name"), "type": "endpoint", "role": ep.get("role")},
+				"io": {
+					"sql": [],
+					"parameters": {},
+					"connection": {
+						"connectionId": conn.get("id"),
+						"adapter": conn.get("adapter") or conn.get("type"),
+						"role": ep.get("role"),
+					},
+				},
+			}
+		return {"step": {}, "io": {}}
+
+	step = steps[0]
 	io = _extract_sql_and_params(step)
 	if ep:
 		conn = ep.get("connection") or {}
