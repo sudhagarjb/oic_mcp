@@ -172,6 +172,60 @@ def tool_definitions() -> list[dict[str, Any]]:
 				["identifier"],
 			),
 		},
+		{
+			"name": "summarize_flow_controls",
+			"description": "Parse integration design JSON and summarize Switch, ForEach, Route, Throw Fault, and scopes with counts.",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string"},
+				},
+				["identifier"],
+			),
+		},
+		{
+			"name": "summarize_mappings",
+			"description": "Extract mapping steps and list source->target hints for quick reading (best-effort).",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string"},
+				},
+				["identifier"],
+			),
+		},
+		{
+			"name": "get_connection_detail",
+			"description": "Get a single connection by identifier.",
+			"inputSchema": _schema_obj({"identifier": {"type": "string"}}, ["identifier"]),
+		},
+		{
+			"name": "get_lookup",
+			"description": "Get a lookup by name.",
+			"inputSchema": _schema_obj({"name": {"type": "string"}}, ["name"]),
+		},
+		{
+			"name": "get_library",
+			"description": "Get a library by name.",
+			"inputSchema": _schema_obj({"name": {"type": "string"}}, ["name"]),
+		},
+		{
+			"name": "get_adapter",
+			"description": "Get an adapter by name.",
+			"inputSchema": _schema_obj({"name": {"type": "string"}}, ["name"]),
+		},
+		{
+			"name": "search_json",
+			"description": "Search any JSON-like structure returned from OIC by simple substring keys/values; helper for research.",
+			"inputSchema": _schema_obj(
+				{
+					"data": {},
+					"query": {"type": "string"},
+					"maxMatches": {"type": "integer", "minimum": 1, "maximum": 500, "default": 50},
+				},
+				["data", "query"],
+			),
+		},
 	]
 
 
@@ -358,7 +412,93 @@ async def _call_summarize_integration(params: dict[str, Any]) -> Any:
 	details = await oic.get_integration(params["identifier"], params.get("version"))
 	if not isinstance(details, dict):
 		return {"summary": {}, "raw": details}
-	return {"summary": _extract_integration_summary(details)}
+	summary = _extract_integration_summary(details)
+	# Attach counts for quick triage
+	d = details.get("content", details)
+	counts = {
+		"endPoints": len(d.get("endPoints") or []),
+		"trackingVariables": len(d.get("trackingVariables") or []),
+	}
+	return {"summary": summary, "counts": counts}
+
+
+def _walk(obj):
+	if isinstance(obj, dict):
+		for k, v in obj.items():
+			yield (k, v)
+			yield from _walk(v)
+	elif isinstance(obj, list):
+		for v in obj:
+			yield from _walk(v)
+
+
+def _collect_controls(d: dict[str, Any]) -> dict[str, Any]:
+	kinds = {"Switch": 0, "ForEach": 0, "Route": 0, "Throw new fault": 0, "Scope": 0}
+	hits: list[dict[str, Any]] = []
+	for k, v in _walk(d):
+		if isinstance(v, dict):
+			t = v.get("type") or v.get("name") or v.get("role") or ""
+			if isinstance(t, str):
+				for label in kinds.keys():
+					if label.lower() in t.lower():
+						kinds[label] += 1
+						hits.append({"label": label, "name": v.get("name"), "role": v.get("role")})
+	return {"counts": kinds, "examples": hits[:20]}
+
+
+def _collect_mappings(d: dict[str, Any]) -> dict[str, Any]:
+	mappings: list[dict[str, Any]] = []
+	for k, v in _walk(d):
+		if isinstance(v, dict) and (v.get("type") or "").lower().find("map") >= 0:
+			mappings.append({"name": v.get("name"), "info": {k1: v.get(k1) for k1 in ("name", "type", "role") if k1 in v}})
+	return {"mappings": mappings[:50], "total": len(mappings)}
+
+
+async def _call_summarize_flow_controls(params: dict[str, Any]) -> Any:
+	details = await oic.get_integration(params["identifier"], params.get("version"))
+	if not isinstance(details, dict):
+		return {"controls": {}, "raw": details}
+	d = details.get("content", details)
+	return {"controls": _collect_controls(d)}
+
+
+async def _call_summarize_mappings(params: dict[str, Any]) -> Any:
+	details = await oic.get_integration(params["identifier"], params.get("version"))
+	if not isinstance(details, dict):
+		return {"mappings": {}, "raw": details}
+	d = details.get("content", details)
+	return _collect_mappings(d)
+
+
+async def _call_get_connection_detail(params: dict[str, Any]) -> Any:
+	return await oic.get_connection(params["identifier"])
+
+
+async def _call_get_lookup(params: dict[str, Any]) -> Any:
+	return await oic.get_lookup(params["name"])
+
+
+async def _call_get_library(params: dict[str, Any]) -> Any:
+	return await oic.get_library(params["name"])
+
+
+async def _call_get_adapter(params: dict[str, Any]) -> Any:
+	return await oic.get_adapter(params["name"])
+
+
+async def _call_search_json(params: dict[str, Any]) -> Any:
+	data = params.get("data")
+	q = str(params.get("query"))
+	maxm = int(params.get("maxMatches", 50))
+	matches: list[dict[str, Any]] = []
+	for k, v in _walk(data):
+		if len(matches) >= maxm:
+			break
+		if isinstance(k, str) and q.lower() in k.lower():
+			matches.append({"pathKey": k, "value": v if isinstance(v, (str, int, float, bool)) else None})
+		if isinstance(v, str) and q.lower() in v.lower():
+			matches.append({"pathKey": k, "value": v})
+	return {"matches": matches, "query": q}
 
 
 TOOL_HANDLERS: Dict[str, ToolHandler] = {
@@ -382,4 +522,11 @@ TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"get_integration_auto": _call_get_integration_auto,
 	"fetch_raw_path": _call_fetch_raw_path,
 	"summarize_integration": _call_summarize_integration,
+	"summarize_flow_controls": _call_summarize_flow_controls,
+	"summarize_mappings": _call_summarize_mappings,
+	"get_connection_detail": _call_get_connection_detail,
+	"get_lookup": _call_get_lookup,
+	"get_library": _call_get_library,
+	"get_adapter": _call_get_adapter,
+	"search_json": _call_search_json,
 } 

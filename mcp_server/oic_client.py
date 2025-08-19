@@ -181,6 +181,37 @@ class OICClient:
             params["limit"] = limit
         return await self._get("/ic/api/integration/v1/lookups", params=params or None)
 
+    async def get_lookup(self, name: str) -> Any:
+        try:
+            return await self._get(f"/ic/api/integration/v1/lookups/{name}")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return await self._get(f"/ic/api/design/v1/lookups/{name}")
+            raise
+
+    async def list_libraries(self, limit: int | None = None) -> Any:
+        params: dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        try:
+            return await self._get("/ic/api/integration/v1/libraries", params=params or None)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return await self._get("/ic/api/design/v1/libraries", params=params or None)
+            raise
+
+    async def get_library(self, name: str) -> Any:
+        try:
+            return await self._get(f"/ic/api/integration/v1/libraries/{name}")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return await self._get(f"/ic/api/design/v1/libraries/{name}")
+            raise
+
+    async def get_adapter(self, name: str) -> Any:
+        # Some tenants expose adapter detail under adapters/{name}
+        return await self._get(f"/ic/api/integration/v1/adapters/{name}")
+
     async def list_adapters(self) -> Any:
         return await self._get("/ic/api/integration/v1/adapters")
 
