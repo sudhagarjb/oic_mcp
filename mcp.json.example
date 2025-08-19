@@ -1,0 +1,23 @@
+{
+	"servers": {
+		"oic-mcp-websocket": {
+			"type": "websocket",
+			"url": "ws://127.0.0.1:8085/ws"
+		},
+		"oic-mcp-command": {
+			"type": "command",
+			"command": ".venv/bin/uvicorn",
+			"args": ["mcp_server.main:app", "--host", "127.0.0.1", "--port", "8085", "--ws", "websockets"],
+			"env": {
+				"OIC_BASE_URL": "https://<instance>.integration.<region>.ocp.oraclecloud.com",
+				"OIC_INSTANCE_NAME": "<optional>",
+				"OAUTH_TOKEN_URL": "https://<idcs>.identity.oraclecloud.com/oauth2/v1/token",
+				"OAUTH_CLIENT_ID": "<client_id>",
+				"OAUTH_CLIENT_SECRET": "<client_secret>",
+				"OAUTH_SCOPE": "<optional>",
+				"HTTP_TIMEOUT_SECS": "30",
+				"HTTP_MAX_RETRIES": "2"
+			}
+		}
+	}
+} 
