@@ -123,6 +123,9 @@ python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{
 
 # Get total count
 python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print('Total integrations:', j['result']['content']['totalResults'])"
+
+# Get items count
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print('Items returned:', len(j['result']['content']['items']))"
 ```
 
 ## Configuration (.env)

@@ -36,6 +36,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     result = {
                         "capabilities": {
                             "tools": True,
+                            "notifications": False,
+                            "resources": False,
+                            "prompts": False,
                         },
                         "serverInfo": {
                             "name": "oic-monitoring-mcp",
@@ -56,7 +59,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                         continue
                     try:
                         result = await TOOL_HANDLERS[name](arguments)
-                        await websocket.send_text(json.dumps(make_result(id_value, {"content": result})))
+                        # Return result directly without content wrapper for better MCP compatibility
+                        await websocket.send_text(json.dumps(make_result(id_value, result)))
                     except Exception as e:  # noqa: BLE001
                         await websocket.send_text(json.dumps(make_error(id_value, -32000, "Tool execution error", {"name": name, "error": str(e)})))
 
