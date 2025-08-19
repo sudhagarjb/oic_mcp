@@ -1,5 +1,7 @@
 from __future__ import annotations
 import json
+import logging
+import time
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -9,6 +11,16 @@ from .jsonrpc import JSONRPCRequest, make_error, make_result
 from .tools import tool_definitions, TOOL_HANDLERS
 from .oic_client import oic_client_singleton as oic
 
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('mcp_server.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 def format_mcp_response(result: Any) -> Dict[str, Any]:
     """
@@ -88,9 +100,13 @@ async def healthz() -> Any:
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
+    logger.info("WebSocket connection accepted")
+    
     try:
         while True:
             raw = await websocket.receive_text()
+            request_start_time = time.time()
+            
             try:
                 req: JSONRPCRequest = json.loads(raw)
                 method = req.get("method")
@@ -99,7 +115,11 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 if not isinstance(params, dict):
                     params = {}
 
+                logger.info(f"Received MCP request: {method} (ID: {id_value})")
+                logger.debug(f"Request params: {json.dumps(params, indent=2)}")
+
                 if method == "initialize":
+                    logger.info("Processing initialize request")
                     result = {
                         "capabilities": {
                             "tools": True,
@@ -113,21 +133,40 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                         },
                     }
                     await websocket.send_text(json.dumps(make_result(id_value, result)))
+                    logger.info("Initialize request completed")
 
                 elif method == "tools/list":
+                    logger.info("Processing tools/list request")
                     tools = tool_definitions()
                     await websocket.send_text(json.dumps(make_result(id_value, {"tools": tools})))
+                    logger.info("Tools list request completed")
 
                 elif method == "tools/call":
                     name = params.get("name")
                     arguments = params.get("arguments") or {}
                     if not name or name not in TOOL_HANDLERS:
-                        await websocket.send_text(json.dumps(make_error(id_value, -32601, f"Unknown tool: {name}")))
+                        error_msg = f"Unknown tool: {name}"
+                        logger.error(error_msg)
+                        await websocket.send_text(json.dumps(make_error(id_value, -32601, error_msg)))
                         continue
+                    
+                    logger.info(f"Executing tool: {name}")
+                    logger.debug(f"Tool arguments: {json.dumps(arguments, indent=2)}")
+                    
+                    tool_start_time = time.time()
                     try:
                         result = await TOOL_HANDLERS[name](arguments)
+                        tool_execution_time = time.time() - tool_start_time
+                        
+                        logger.info(f"Tool {name} executed successfully in {tool_execution_time:.2f}s")
+                        logger.debug(f"Tool result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+                        
                         # Format the response to handle OIC API structure internally
+                        format_start_time = time.time()
                         formatted_result = format_mcp_response(result)
+                        format_time = time.time() - format_start_time
+                        
+                        logger.debug(f"Response formatting took {format_time:.2f}s")
                         
                         # Use standard response format for list-type responses
                         if should_use_standard_response(formatted_result):
@@ -137,15 +176,33 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                             final_result = formatted_result
                         
                         await websocket.send_text(json.dumps(make_result(id_value, final_result)))
+                        
+                        total_request_time = time.time() - request_start_time
+                        logger.info(f"Tool {name} request completed in {total_request_time:.2f}s total")
+                        
                     except Exception as e:  # noqa: BLE001
-                        await websocket.send_text(json.dumps(make_error(id_value, -32000, "Tool execution error", {"name": name, "error": str(e)})))
+                        tool_execution_time = time.time() - tool_start_time
+                        error_msg = f"Tool execution error: {str(e)}"
+                        logger.error(f"Tool {name} failed after {tool_execution_time:.2f}s: {e}")
+                        await websocket.send_text(json.dumps(make_error(id_value, -32000, error_msg, {"name": name, "error": str(e)})))
 
                 else:
-                    await websocket.send_text(json.dumps(make_error(id_value, -32601, f"Unknown method: {method}")))
+                    error_msg = f"Unknown method: {method}"
+                    logger.error(error_msg)
+                    await websocket.send_text(json.dumps(make_error(id_value, -32601, error_msg)))
 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error: {e}")
                 await websocket.send_text(json.dumps(make_error(None, -32700, "Parse error")))
+            except Exception as e:
+                logger.error(f"Unexpected error processing request: {e}")
+                await websocket.send_text(json.dumps(make_error(None, -32603, f"Internal error: {str(e)}")))
+                
     except WebSocketDisconnect:
+        logger.info("WebSocket connection disconnected")
         return
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
     finally:
+        logger.info("Closing OIC client connection")
         await oic.aclose() 

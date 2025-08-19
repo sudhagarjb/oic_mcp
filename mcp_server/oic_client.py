@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import time
+import logging
 from typing import Any, Dict, Optional
 
 import httpx
@@ -10,6 +11,8 @@ import io
 
 from .settings import settings
 
+# Setup logging for OIC client
+logger = logging.getLogger(__name__)
 
 class OAuth2Token:
     def __init__(self, access_token: str, expires_in: int, token_type: str = "Bearer") -> None:
@@ -49,7 +52,12 @@ class OICClient:
         self._ensure_client()
         async with self._lock:
             if self._token is not None and not self._token.is_expired():
+                logger.debug("Using existing OAuth token")
                 return self._token.access_token
+            
+            logger.info("Fetching new OAuth token")
+            token_start_time = time.time()
+            
             data = {
                 "grant_type": "client_credentials",
                 "client_id": settings.oauth_client_id,
@@ -71,6 +79,9 @@ class OICClient:
             if not access_token:
                 raise RuntimeError("OAuth token endpoint did not return access_token")
             self._token = OAuth2Token(access_token=access_token, expires_in=expires_in, token_type=token_type)
+            
+            token_time = time.time() - token_start_time
+            logger.info(f"OAuth token fetched successfully in {token_time:.2f}s")
             return self._token.access_token
 
     def _with_instance_param(self, params: Optional[dict[str, Any]]) -> dict[str, Any] | None:
@@ -87,8 +98,17 @@ class OICClient:
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
         if headers_override:
             headers.update(headers_override)
+        
+        request_start_time = time.time()
+        logger.debug(f"Making HTTP request to: {url}")
+        logger.debug(f"Request params: {params}")
+        
         assert self._client is not None
         resp = await self._client.get(url, headers=headers, params=self._with_instance_param(params))
+        
+        request_time = time.time() - request_start_time
+        logger.info(f"HTTP request to {path} completed in {request_time:.2f}s (Status: {resp.status_code})")
+        
         resp.raise_for_status()
         return resp
 
@@ -111,6 +131,8 @@ class OICClient:
 
     # Integration design endpoints
     async def list_integrations(self, only_activated: bool | None = None, limit: int | None = None, page: int | None = None) -> Any:
+        logger.info(f"Calling list_integrations - only_activated: {only_activated}, limit: {limit}, page: {page}")
+        
         params: dict[str, Any] = {}
         if only_activated is not None:
             params["onlyActivated"] = str(only_activated).lower()
@@ -118,18 +140,40 @@ class OICClient:
             params["limit"] = limit
         if page is not None:
             params["page"] = page
-        return await self._get("/ic/api/integration/v1/integrations", params=params or None)
+        
+        start_time = time.time()
+        result = await self._get("/ic/api/integration/v1/integrations", params=params or None)
+        execution_time = time.time() - start_time
+        
+        # Log response details
+        if isinstance(result, dict):
+            items_count = len(result.get("items", [])) if "items" in result else 0
+            total_results = result.get("totalResults", 0)
+            has_more = result.get("hasMore", False)
+            logger.info(f"list_integrations returned {items_count} items, total: {total_results}, hasMore: {has_more} in {execution_time:.2f}s")
+        else:
+            logger.warning(f"list_integrations returned non-dict result: {type(result)} in {execution_time:.2f}s")
+        
+        return result
 
     async def list_all_integrations(self, only_activated: bool | None = None, max_pages: int = 100, per_page: int = 100) -> list[Dict[str, Any]]:
         """
         Fetch all integrations across all pages, handling pagination issues.
         Returns a deduplicated list of all integrations found.
         """
+        logger.info(f"Starting list_all_integrations - only_activated: {only_activated}, max_pages: {max_pages}, per_page: {per_page}")
+        
         all_integrations = []
         seen_codes = set()  # Track seen integration codes to avoid duplicates
         page = 1
+        total_start_time = time.time()
+        consecutive_empty_pages = 0  # Track consecutive pages with no new integrations
+        max_consecutive_empty = 3  # Stop after 3 consecutive pages with no new integrations
         
         while page <= max_pages:
+            page_start_time = time.time()
+            logger.info(f"Fetching page {page}/{max_pages}")
+            
             try:
                 data = await self.list_integrations(only_activated=only_activated, limit=per_page, page=page)
                 
@@ -144,6 +188,7 @@ class OICClient:
                         items = data["data"]["items"]
                 
                 if not items:
+                    logger.info(f"No items found on page {page}, stopping pagination")
                     break  # No more items to fetch
                 
                 # Add only unique integrations (by code)
@@ -156,34 +201,64 @@ class OICClient:
                 
                 all_integrations.extend(new_integrations)
                 
+                page_time = time.time() - page_start_time
+                logger.info(f"Page {page}: found {len(items)} items, {len(new_integrations)} new unique, total so far: {len(all_integrations)} in {page_time:.2f}s")
+                
+                # Check if we got any new integrations
+                if len(new_integrations) == 0:
+                    consecutive_empty_pages += 1
+                    logger.info(f"No new unique integrations on page {page}. Consecutive empty pages: {consecutive_empty_pages}")
+                    
+                    if consecutive_empty_pages >= max_consecutive_empty:
+                        logger.info(f"Stopping pagination after {consecutive_empty_pages} consecutive pages with no new integrations")
+                        break
+                else:
+                    consecutive_empty_pages = 0  # Reset counter when we find new integrations
+                
                 # Check if there are more pages
                 has_more = False
                 if isinstance(data, dict):
                     has_more = bool(data.get("hasMore")) or bool(data.get("content", {}).get("hasMore")) or bool(data.get("data", {}).get("hasMore"))
                 
                 if not has_more:
+                    logger.info(f"No more pages indicated by API response")
                     break
                 
                 page += 1
                 
             except Exception as e:
                 # Log error and break to avoid infinite loops
-                print(f"Error fetching page {page}: {e}")
+                page_time = time.time() - page_start_time
+                logger.error(f"Error fetching page {page} after {page_time:.2f}s: {e}")
                 break
+        
+        total_time = time.time() - total_start_time
+        logger.info(f"list_all_integrations completed: fetched {len(all_integrations)} unique integrations from {page-1} pages in {total_time:.2f}s")
         
         return all_integrations
 
     async def resolve_latest_version(self, code: str, max_pages: int = 50, per_page: int = 100) -> Optional[str]:
+        logger.info(f"Resolving latest version for code: {code}")
+        start_time = time.time()
+        
         # Use the new list_all_integrations method for better pagination handling
         all_integrations = await self.list_all_integrations(max_pages=max_pages, per_page=per_page)
         
         for integration in all_integrations:
             if integration.get("code") == code:
-                return integration.get("version")
+                version = integration.get("version")
+                execution_time = time.time() - start_time
+                logger.info(f"Found latest version for {code}: {version} in {execution_time:.2f}s")
+                return version
         
+        execution_time = time.time() - start_time
+        logger.warning(f"No version found for code {code} in {execution_time:.2f}s")
         return None
 
     async def get_integration(self, identifier: str, version: str | None) -> Any:
+        logger.info(f"Getting integration: {identifier}, version: {version}")
+        start_time = time.time()
+        
         # Accept 'CODE|VERSION' in identifier, or separate code + version; auto-resolve latest if version is empty
         code = identifier
         ver = version or ""
@@ -194,7 +269,11 @@ class OICClient:
             if not ver:
                 raise httpx.HTTPStatusError("Version not found for code", request=None, response=httpx.Response(404))
         encoded = f"{code}%7C{ver}"
-        return await self._get(f"/ic/api/integration/v1/integrations/{encoded}")
+        result = await self._get(f"/ic/api/integration/v1/integrations/{encoded}")
+        
+        execution_time = time.time() - start_time
+        logger.info(f"get_integration completed for {identifier} in {execution_time:.2f}s")
+        return result
 
     async def export_integration(self, identifier: str, version: str | None, list_only: bool = False, max_preview_bytes: int = 8192) -> Dict[str, Any]:
         # Export archive (zip) of the integration

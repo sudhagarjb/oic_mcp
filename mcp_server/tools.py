@@ -2,9 +2,13 @@ from __future__ import annotations
 from typing import Any, Awaitable, Callable, Dict, List
 import json
 import os
+import time
+import logging
 
 from .oic_client import oic_client_singleton as oic
 
+# Setup logging for tools
+logger = logging.getLogger(__name__)
 
 ToolHandler = Callable[[dict[str, Any]], Awaitable[Any]]
 
@@ -167,12 +171,7 @@ def tool_definitions() -> list[dict[str, Any]]:
 		{
 			"name": "fetch_raw_path",
 			"description": "Fetch an arbitrary OIC relative path (e.g., /ic/api/integration/v1/flows/rest/..); returns JSON or text wrapped in JSON.",
-			"inputSchema": _schema_obj(
-				{
-					"path": {"type": "string"},
-				},
-				["path"],
-			),
+			"inputSchema": _schema_obj({"path": {"type": "string"}}, ["path"]),
 		},
 		{
 			"name": "summarize_integration",
@@ -321,17 +320,29 @@ def tool_definitions() -> list[dict[str, Any]]:
 
 
 async def _call_list_integrations(params: dict[str, Any]) -> Any:
-	return await oic.list_integrations(
+	logger.info(f"Tool _call_list_integrations called with params: {params}")
+	start_time = time.time()
+	
+	result = await oic.list_integrations(
 		only_activated=params.get("onlyActivated"),
 		limit=params.get("limit"),
 		page=params.get("page"),
 	)
+	
+	execution_time = time.time() - start_time
+	logger.info(f"Tool _call_list_integrations completed in {execution_time:.2f}s")
+	return result
 
 
 async def _call_list_all_integrations(params: dict[str, Any]) -> Any:
+	logger.info(f"Tool _call_list_all_integrations called with params: {params}")
+	start_time = time.time()
+	
 	only_activated = params.get("onlyActivated")
 	max_pages = params.get("maxPages", 100)
 	per_page = params.get("perPage", 100)
+
+	logger.info(f"Starting list_all_integrations with max_pages={max_pages}, per_page={per_page}, only_activated={only_activated}")
 
 	# Use the new method that handles pagination properly
 	all_integrations = await oic.list_all_integrations(
@@ -339,6 +350,9 @@ async def _call_list_all_integrations(params: dict[str, Any]) -> Any:
 		max_pages=max_pages, 
 		per_page=per_page
 	)
+
+	execution_time = time.time() - start_time
+	logger.info(f"Tool _call_list_all_integrations completed in {execution_time:.2f}s - returned {len(all_integrations)} integrations")
 
 	return {"items": all_integrations, "totalMatched": len(all_integrations)}
 
