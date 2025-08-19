@@ -77,7 +77,7 @@ class OICClient:
             params.setdefault("integrationInstance", _s.oic_instance_name)
         return params or None
 
-    async def _get(self, path: str, params: Optional[dict[str, Any]] = None) -> Dict[str, Any] | Any:
+    async def _request(self, path: str, params: Optional[dict[str, Any]] = None) -> httpx.Response:
         self._ensure_client()
         token = await self._ensure_token()
         url = f"{settings.oic_base_url}{path}"
@@ -85,9 +85,24 @@ class OICClient:
         assert self._client is not None
         resp = await self._client.get(url, headers=headers, params=self._with_instance_param(params))
         resp.raise_for_status()
+        return resp
+
+    async def _get(self, path: str, params: Optional[dict[str, Any]] = None) -> Dict[str, Any] | Any:
+        resp = await self._request(path, params)
         if resp.headers.get("Content-Type", "").startswith("application/json"):
             return resp.json()
         return resp.text
+
+    async def get_raw_path(self, path: str, params: Optional[dict[str, Any]] = None) -> Dict[str, Any]:
+        resp = await self._request(path, params)
+        content_type = resp.headers.get("Content-Type", "")
+        body: Dict[str, Any] = {"contentType": content_type}
+        if content_type.startswith("application/json"):
+            body["json"] = resp.json()
+        else:
+            # Return text safely for non-JSON (XML, etc.)
+            body["text"] = resp.text
+        return body
 
     # Integration design endpoints
     async def list_integrations(self, only_activated: bool | None = None, limit: int | None = None, page: int | None = None) -> Any:
@@ -100,8 +115,30 @@ class OICClient:
             params["page"] = page
         return await self._get("/ic/api/integration/v1/integrations", params=params or None)
 
-    async def get_integration(self, identifier: str, version: str) -> Any:
-        return await self._get(f"/ic/api/integration/v1/integrations/{identifier}/versions/{version}")
+    async def resolve_latest_version(self, code: str, max_pages: int = 20, per_page: int = 100) -> Optional[str]:
+        for page in range(1, max_pages + 1):
+            data = await self.list_integrations(limit=per_page, page=page)
+            items = (data or {}).get("items") or (data.get("content", {}).get("items", [])) if isinstance(data, dict) else []
+            for it in items:
+                if it.get("code") == code:
+                    return it.get("version")
+            has_more = isinstance(data, dict) and (bool(data.get("hasMore")) or bool(data.get("content", {}).get("hasMore")))
+            if not has_more:
+                break
+        return None
+
+    async def get_integration(self, identifier: str, version: str | None) -> Any:
+        # Accept 'CODE|VERSION' in identifier, or separate code + version; auto-resolve latest if version is empty
+        code = identifier
+        ver = version or ""
+        if "|" in identifier and not version:
+            code, ver = identifier.split("|", 1)
+        if not ver:
+            ver = await self.resolve_latest_version(code) or ""
+            if not ver:
+                raise httpx.HTTPStatusError("Version not found for code", request=None, response=httpx.Response(404))
+        encoded = f"{code}%7C{ver}"
+        return await self._get(f"/ic/api/integration/v1/integrations/{encoded}")
 
     async def list_packages(self, limit: int | None = None) -> Any:
         params: dict[str, Any] = {}

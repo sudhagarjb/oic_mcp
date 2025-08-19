@@ -140,6 +140,38 @@ def tool_definitions() -> list[dict[str, Any]]:
 				["terms"],
 			),
 		},
+		{
+			"name": "get_integration_auto",
+			"description": "Get integration details by 'code' or 'code|version'; auto-resolves latest version when needed.",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string", "description": "optional; leave blank if identifier includes code|version or to auto-resolve latest"},
+				},
+				["identifier"],
+			),
+		},
+		{
+			"name": "fetch_raw_path",
+			"description": "Fetch an arbitrary OIC relative path (e.g., /ic/api/integration/v1/flows/rest/..); returns JSON or text wrapped in JSON.",
+			"inputSchema": _schema_obj(
+				{
+					"path": {"type": "string"},
+				},
+				["path"],
+			),
+		},
+		{
+			"name": "summarize_integration",
+			"description": "Auto-fetch and summarize integration by code or code|version, returning trigger, targets, connections, tracking variables, and status as JSON.",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string"},
+				},
+				["identifier"],
+			),
+		},
 	]
 
 
@@ -259,6 +291,76 @@ async def _call_list_integrations_search(params: dict[str, Any]) -> Any:
 	return {"items": matched, "totalMatched": len(matched)}
 
 
+async def _call_get_integration_auto(params: dict[str, Any]) -> Any:
+	return await oic.get_integration(params["identifier"], params.get("version"))
+
+
+async def _call_fetch_raw_path(params: dict[str, Any]) -> Any:
+	return await oic.get_raw_path(params["path"])
+
+
+def _endpoint_role_name_safe(ep: dict[str, Any]) -> str:
+	role = ep.get("role") or ep.get("name") or ""
+	return str(role)
+
+
+def _extract_integration_summary(data: dict[str, Any]) -> dict[str, Any]:
+	# Normalize content location
+	d = data
+	if isinstance(d, dict) and "content" in d and isinstance(d["content"], dict):
+		d = d["content"]
+	code = d.get("code")
+	name = d.get("name")
+	version = d.get("version")
+	status = d.get("status")
+	pattern = d.get("pattern") or d.get("style")
+	end_points = d.get("endPoints") or []
+
+	trigger = None
+	targets: list[dict[str, Any]] = []
+	for ep in end_points:
+		role = _endpoint_role_name_safe(ep).upper()
+		conn = (ep.get("connection") or {})
+		item = {
+			"role": role,
+			"connectionId": conn.get("id"),
+			"agentRequired": conn.get("agentRequired"),
+			"adapter": conn.get("adapter") or conn.get("type"),
+			"privateEndpoint": conn.get("privateEndpoint"),
+		}
+		if role in ("SOURCE", "TRIGGER") and trigger is None:
+			trigger = item
+		else:
+			targets.append(item)
+
+	tracking_vars: list[dict[str, Any]] = []
+	for tv in d.get("trackingVariables") or []:
+		tracking_vars.append({
+			"name": tv.get("name"),
+			"primary": tv.get("primary"),
+			"xpath": tv.get("xpath"),
+		})
+
+	return {
+		"code": code,
+		"name": name,
+		"version": version,
+		"status": status,
+		"pattern": pattern,
+		"trigger": trigger,
+		"targets": targets,
+		"trackingVariables": tracking_vars,
+		"links": d.get("links"),
+	}
+
+
+async def _call_summarize_integration(params: dict[str, Any]) -> Any:
+	details = await oic.get_integration(params["identifier"], params.get("version"))
+	if not isinstance(details, dict):
+		return {"summary": {}, "raw": details}
+	return {"summary": _extract_integration_summary(details)}
+
+
 TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"list_integrations": _call_list_integrations,
 	"get_integration": _call_get_integration,
@@ -277,4 +379,7 @@ TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"list_agent_groups": _call_list_agent_groups,
 	"list_metrics": _call_list_metrics,
 	"list_integrations_search": _call_list_integrations_search,
+	"get_integration_auto": _call_get_integration_auto,
+	"fetch_raw_path": _call_fetch_raw_path,
+	"summarize_integration": _call_summarize_integration,
 } 
