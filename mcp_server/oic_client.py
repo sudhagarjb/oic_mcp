@@ -120,14 +120,27 @@ class OICClient:
             params["page"] = page
         return await self._get("/ic/api/integration/v1/integrations", params=params or None)
 
-    async def resolve_latest_version(self, code: str, max_pages: int = 20, per_page: int = 100) -> Optional[str]:
+    async def resolve_latest_version(self, code: str, max_pages: int = 50, per_page: int = 100) -> Optional[str]:
         for page in range(1, max_pages + 1):
             data = await self.list_integrations(limit=per_page, page=page)
-            items = (data or {}).get("items") or (data.get("content", {}).get("items", [])) if isinstance(data, dict) else []
+            # Handle different response structures
+            items = []
+            if isinstance(data, dict):
+                if "items" in data:
+                    items = data["items"]
+                elif "content" in data and isinstance(data["content"], dict) and "items" in data["content"]:
+                    items = data["content"]["items"]
+                elif "data" in data and isinstance(data["data"], dict) and "items" in data["data"]:
+                    items = data["data"]["items"]
+            
             for it in items:
                 if it.get("code") == code:
                     return it.get("version")
-            has_more = isinstance(data, dict) and (bool(data.get("hasMore")) or bool(data.get("content", {}).get("hasMore")))
+            
+            # Check if there are more pages
+            has_more = False
+            if isinstance(data, dict):
+                has_more = bool(data.get("hasMore")) or bool(data.get("content", {}).get("hasMore")) or bool(data.get("data", {}).get("hasMore"))
             if not has_more:
                 break
         return None

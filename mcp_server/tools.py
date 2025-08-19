@@ -426,7 +426,15 @@ async def _call_list_integrations_search(params: dict[str, Any]) -> Any:
 
 
 async def _call_get_integration_auto(params: dict[str, Any]) -> Any:
-	return await oic.get_integration(params["identifier"], params.get("version"))
+	try:
+		return await oic.get_integration(params["identifier"], params.get("version"))
+	except Exception as e:
+		# Provide a more descriptive error message
+		identifier = params["identifier"]
+		if "Version not found for code" in str(e):
+			raise Exception(f"Integration '{identifier}' not found. The integration may not exist, be archived, or be in a different environment.")
+		else:
+			raise Exception(f"Failed to retrieve integration '{identifier}': {str(e)}")
 
 
 async def _call_fetch_raw_path(params: dict[str, Any]) -> Any:
