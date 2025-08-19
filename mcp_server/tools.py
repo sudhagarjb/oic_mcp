@@ -32,6 +32,17 @@ def tool_definitions() -> list[dict[str, Any]]:
 			),
 		},
 		{
+			"name": "list_all_integrations",
+			"description": "Fetch ALL integrations across all pages (handles pagination issues). Optional: onlyActivated, maxPages, perPage",
+			"inputSchema": _schema_obj(
+				{
+					"onlyActivated": {"type": "boolean"},
+					"maxPages": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum pages to search (default: 100)"},
+					"perPage": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "Integrations per page (default: 100)"},
+				}
+			),
+		},
+		{
 			"name": "get_integration",
 			"description": "Get an integration by identifier and version",
 			"inputSchema": _schema_obj(
@@ -317,6 +328,21 @@ async def _call_list_integrations(params: dict[str, Any]) -> Any:
 	)
 
 
+async def _call_list_all_integrations(params: dict[str, Any]) -> Any:
+	only_activated = params.get("onlyActivated")
+	max_pages = params.get("maxPages", 100)
+	per_page = params.get("perPage", 100)
+
+	# Use the new method that handles pagination properly
+	all_integrations = await oic.list_all_integrations(
+		only_activated=only_activated, 
+		max_pages=max_pages, 
+		per_page=per_page
+	)
+
+	return {"items": all_integrations, "totalMatched": len(all_integrations)}
+
+
 async def _call_get_integration(params: dict[str, Any]) -> Any:
 	return await oic.get_integration(params["identifier"], params["version"])
 
@@ -403,24 +429,22 @@ async def _call_list_integrations_search(params: dict[str, Any]) -> Any:
 	only_activated = params.get("onlyActivated")
 	case_sensitive: bool = bool(params.get("caseSensitive", False))
 
+	# Use the new method that handles pagination properly
+	all_integrations = await oic.list_all_integrations(
+		only_activated=only_activated, 
+		max_pages=max_pages, 
+		per_page=per_page
+	)
+
 	matched: List[dict[str, Any]] = []
-	for page in range(1, max_pages + 1):
-		page_data = await oic.list_integrations(only_activated=only_activated, limit=per_page, page=page)
-		items = (page_data or {}).get("items") or (page_data.get("content", {}).get("items", [])) if isinstance(page_data, dict) else []
-		for it in items:
-			if any(_matches_terms(it.get(f), terms, case_sensitive) for f in fields):
-				matched.append({
-					"code": it.get("code"),
-					"name": it.get("name"),
-					"version": it.get("version"),
-					"status": it.get("status"),
-				})
-		# detect hasMore from either top-level or nested content
-		has_more = False
-		if isinstance(page_data, dict):
-			has_more = bool(page_data.get("hasMore")) or bool(page_data.get("content", {}).get("hasMore"))
-		if not has_more:
-			break
+	for it in all_integrations:
+		if any(_matches_terms(it.get(f), terms, case_sensitive) for f in fields):
+			matched.append({
+				"code": it.get("code"),
+				"name": it.get("name"),
+				"version": it.get("version"),
+				"status": it.get("status"),
+			})
 
 	return {"items": matched, "totalMatched": len(matched)}
 
@@ -813,6 +837,7 @@ async def _call_summarize_integration_with_steps(params: dict[str, Any]) -> Any:
 
 TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"list_integrations": _call_list_integrations,
+	"list_all_integrations": _call_list_all_integrations,
 	"get_integration": _call_get_integration,
 	"list_packages": _call_list_packages,
 	"get_package": _call_get_package,

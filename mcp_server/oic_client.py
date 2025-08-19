@@ -120,29 +120,67 @@ class OICClient:
             params["page"] = page
         return await self._get("/ic/api/integration/v1/integrations", params=params or None)
 
-    async def resolve_latest_version(self, code: str, max_pages: int = 50, per_page: int = 100) -> Optional[str]:
-        for page in range(1, max_pages + 1):
-            data = await self.list_integrations(limit=per_page, page=page)
-            # Handle different response structures
-            items = []
-            if isinstance(data, dict):
-                if "items" in data:
-                    items = data["items"]
-                elif "content" in data and isinstance(data["content"], dict) and "items" in data["content"]:
-                    items = data["content"]["items"]
-                elif "data" in data and isinstance(data["data"], dict) and "items" in data["data"]:
-                    items = data["data"]["items"]
-            
-            for it in items:
-                if it.get("code") == code:
-                    return it.get("version")
-            
-            # Check if there are more pages
-            has_more = False
-            if isinstance(data, dict):
-                has_more = bool(data.get("hasMore")) or bool(data.get("content", {}).get("hasMore")) or bool(data.get("data", {}).get("hasMore"))
-            if not has_more:
+    async def list_all_integrations(self, only_activated: bool | None = None, max_pages: int = 100, per_page: int = 100) -> list[Dict[str, Any]]:
+        """
+        Fetch all integrations across all pages, handling pagination issues.
+        Returns a deduplicated list of all integrations found.
+        """
+        all_integrations = []
+        seen_codes = set()  # Track seen integration codes to avoid duplicates
+        page = 1
+        
+        while page <= max_pages:
+            try:
+                data = await self.list_integrations(only_activated=only_activated, limit=per_page, page=page)
+                
+                # Handle different response structures
+                items = []
+                if isinstance(data, dict):
+                    if "items" in data:
+                        items = data["items"]
+                    elif "content" in data and isinstance(data["content"], dict) and "items" in data["content"]:
+                        items = data["content"]["items"]
+                    elif "data" in data and isinstance(data["data"], dict) and "items" in data["data"]:
+                        items = data["data"]["items"]
+                
+                if not items:
+                    break  # No more items to fetch
+                
+                # Add only unique integrations (by code)
+                new_integrations = []
+                for item in items:
+                    code = item.get("code")
+                    if code and code not in seen_codes:
+                        seen_codes.add(code)
+                        new_integrations.append(item)
+                
+                all_integrations.extend(new_integrations)
+                
+                # Check if there are more pages
+                has_more = False
+                if isinstance(data, dict):
+                    has_more = bool(data.get("hasMore")) or bool(data.get("content", {}).get("hasMore")) or bool(data.get("data", {}).get("hasMore"))
+                
+                if not has_more:
+                    break
+                
+                page += 1
+                
+            except Exception as e:
+                # Log error and break to avoid infinite loops
+                print(f"Error fetching page {page}: {e}")
                 break
+        
+        return all_integrations
+
+    async def resolve_latest_version(self, code: str, max_pages: int = 50, per_page: int = 100) -> Optional[str]:
+        # Use the new list_all_integrations method for better pagination handling
+        all_integrations = await self.list_all_integrations(max_pages=max_pages, per_page=per_page)
+        
+        for integration in all_integrations:
+            if integration.get("code") == code:
+                return integration.get("version")
+        
         return None
 
     async def get_integration(self, identifier: str, version: str | None) -> Any:
