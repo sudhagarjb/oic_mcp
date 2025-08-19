@@ -4,6 +4,9 @@ import time
 from typing import Any, Dict, Optional
 
 import httpx
+import base64
+import zipfile
+import io
 
 from .settings import settings
 
@@ -77,11 +80,13 @@ class OICClient:
             params.setdefault("integrationInstance", _s.oic_instance_name)
         return params or None
 
-    async def _request(self, path: str, params: Optional[dict[str, Any]] = None) -> httpx.Response:
+    async def _request(self, path: str, params: Optional[dict[str, Any]] = None, headers_override: Optional[dict[str, str]] = None) -> httpx.Response:
         self._ensure_client()
         token = await self._ensure_token()
         url = f"{settings.oic_base_url}{path}"
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        if headers_override:
+            headers.update(headers_override)
         assert self._client is not None
         resp = await self._client.get(url, headers=headers, params=self._with_instance_param(params))
         resp.raise_for_status()
@@ -139,6 +144,53 @@ class OICClient:
                 raise httpx.HTTPStatusError("Version not found for code", request=None, response=httpx.Response(404))
         encoded = f"{code}%7C{ver}"
         return await self._get(f"/ic/api/integration/v1/integrations/{encoded}")
+
+    async def export_integration(self, identifier: str, version: str | None, list_only: bool = False, max_preview_bytes: int = 8192) -> Dict[str, Any]:
+        # Export archive (zip) of the integration
+        code = identifier
+        ver = version or ""
+        if "|" in identifier and not version:
+            code, ver = identifier.split("|", 1)
+        if not ver:
+            ver = await self.resolve_latest_version(code) or ""
+            if not ver:
+                raise httpx.HTTPStatusError("Version not found for code", request=None, response=httpx.Response(404))
+        encoded = f"{code}%7C{ver}"
+        resp = await self._request(
+            f"/ic/api/integration/v1/integrations/{encoded}/archive",
+            headers_override={"Accept": "application/zip"},
+        )
+        cd = resp.headers.get("Content-Disposition", "")
+        file_name = None
+        if "filename=" in cd:
+            file_name = cd.split("filename=", 1)[-1].strip('"')
+        content_b64 = base64.b64encode(resp.content).decode("ascii")
+        result: Dict[str, Any] = {
+            "contentType": resp.headers.get("Content-Type", ""),
+            "fileName": file_name or f"{code}_{ver}.zip",
+            "size": len(resp.content),
+        }
+        # Optionally list entries
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(resp.content))
+            entries = []
+            for zi in zf.infolist():
+                ent: Dict[str, Any] = {"name": zi.filename, "size": zi.file_size}
+                if not list_only and zi.file_size <= max_preview_bytes and not zi.is_dir():
+                    data = zf.read(zi)
+                    # Try to decode as text for JSON/XML readability
+                    try:
+                        ent["textPreview"] = data.decode("utf-8", errors="replace")
+                    except Exception:  # noqa: BLE001
+                        pass
+                entries.append(ent)
+            result["entries"] = entries
+        except Exception:  # noqa: BLE001
+            # Keep just the archive
+            pass
+        if not list_only:
+            result["archiveBase64"] = content_b64
+        return result
 
     async def list_packages(self, limit: int | None = None) -> Any:
         params: dict[str, Any] = {}

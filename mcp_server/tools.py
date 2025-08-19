@@ -262,6 +262,30 @@ def tool_definitions() -> list[dict[str, Any]]:
 				["identifier", "stepName"],
 			),
 		},
+		{
+			"name": "export_integration",
+			"description": "Export integration archive (zip) and list entries; returns base64 and previews for small files.",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string"},
+					"listOnly": {"type": "boolean"},
+					"maxPreviewBytes": {"type": "integer", "minimum": 0, "maximum": 65536, "default": 8192},
+				},
+				["identifier"],
+			),
+		},
+		{
+			"name": "deep_flow_outline",
+			"description": "Generate a compact textual outline of major flow steps (Trigger/Scopes/If/Map/Invoke/Throw/ForEach/Switch).",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string"},
+				},
+				["identifier"],
+			),
+		},
 	]
 
 
@@ -627,6 +651,58 @@ async def _call_summarize_step_io(params: dict[str, Any]) -> Any:
 	return {"step": {"name": step.get("name"), "type": step.get("type"), "role": step.get("role")}, "io": io}
 
 
+async def _call_export_integration(params: dict[str, Any]) -> Any:
+	return await oic.export_integration(
+		params["identifier"],
+		params.get("version"),
+		list_only=bool(params.get("listOnly", False)),
+		max_preview_bytes=int(params.get("maxPreviewBytes", 8192)),
+	)
+
+
+def _outline_from_design(d: dict[str, Any]) -> list[str]:
+	lines: list[str] = []
+	# Trigger
+	for ep in d.get("endPoints", []) or []:
+		conn = ep.get("connection") or {}
+		if str(ep.get("role", "")).upper() == "SOURCE":
+			lines.append(f"Trigger | Trigger using {conn.get('id')} connection of type {conn.get('type') or conn.get('adapter') or 'unknown'}")
+	# Walk nodes; best-effort labels
+	for k, v in _walk(d):
+		if not isinstance(v, dict):
+			continue
+		name = str(v.get("name", ""))
+		t = (v.get("type") or v.get("role") or name).lower()
+		def add(lbl: str):
+			if name:
+				lines.append(f"{lbl} | {name}")
+			else:
+				lines.append(lbl)
+		if "scope" in t:
+			add("Scope")
+		elif t.startswith("if") or "switch" in t or "route" in t:
+			add("If/Switch/Route")
+		elif "map" in t:
+			add("Map")
+		elif "invoke" in t:
+			add("Invoke")
+		elif "throw" in t:
+			add("Throw new fault")
+		elif "for each" in t or "foreach" in t:
+			add("For each")
+		elif "stitch" in t:
+			add("Stitch")
+	return lines[:500]
+
+
+async def _call_deep_flow_outline(params: dict[str, Any]) -> Any:
+	details = await oic.get_integration(params["identifier"], params.get("version"))
+	if not isinstance(details, dict):
+		return {"outline": []}
+	d = _to_design(details)
+	return {"outline": _outline_from_design(d)}
+
+
 TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"list_integrations": _call_list_integrations,
 	"get_integration": _call_get_integration,
@@ -658,4 +734,6 @@ TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"list_endpoints": _call_list_endpoints,
 	"get_integration_step": _call_get_integration_step,
 	"summarize_step_io": _call_summarize_step_io,
+	"export_integration": _call_export_integration,
+	"deep_flow_outline": _call_deep_flow_outline,
 } 
