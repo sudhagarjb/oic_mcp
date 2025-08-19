@@ -226,6 +226,42 @@ def tool_definitions() -> list[dict[str, Any]]:
 				["data", "query"],
 			),
 		},
+		{
+			"name": "list_endpoints",
+			"description": "List integration endpoints (name, role, connection).",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string"},
+				},
+				["identifier"],
+			),
+		},
+		{
+			"name": "get_integration_step",
+			"description": "Return raw JSON subtree of a step by name from design JSON.",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string"},
+					"stepName": {"type": "string"},
+					"maxMatches": {"type": "integer", "minimum": 1, "maximum": 50, "default": 5},
+				},
+				["identifier", "stepName"],
+			),
+		},
+		{
+			"name": "summarize_step_io",
+			"description": "Summarize sources/targets, suspected SQL/query, and parameters for a step by name (best-effort).",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string"},
+					"stepName": {"type": "string"},
+				},
+				["identifier", "stepName"],
+			),
+		},
 	]
 
 
@@ -501,6 +537,96 @@ async def _call_search_json(params: dict[str, Any]) -> Any:
 	return {"matches": matches, "query": q}
 
 
+def _to_design(d: dict[str, Any]) -> dict[str, Any]:
+	return d.get("content", d)
+
+
+async def _call_list_endpoints(params: dict[str, Any]) -> Any:
+	details = await oic.get_integration(params["identifier"], params.get("version"))
+	if not isinstance(details, dict):
+		return {"endPoints": []}
+	d = _to_design(details)
+	eps = []
+	for ep in d.get("endPoints", []) or []:
+		conn = ep.get("connection") or {}
+		eps.append({
+			"name": ep.get("name"),
+			"role": ep.get("role"),
+			"connectionId": conn.get("id"),
+			"adapter": conn.get("adapter") or conn.get("type"),
+		})
+	return {"endPoints": eps}
+
+
+def _find_nodes_by_name(d: Any, name: str, max_matches: int) -> list[dict[str, Any]]:
+	results: list[dict[str, Any]] = []
+	for k, v in _walk(d):
+		if isinstance(v, dict) and str(v.get("name", "")).lower() == name.lower():
+			results.append(v)
+			if len(results) >= max_matches:
+				break
+	return results
+
+
+async def _call_get_integration_step(params: dict[str, Any]) -> Any:
+	details = await oic.get_integration(params["identifier"], params.get("version"))
+	if not isinstance(details, dict):
+		return {"steps": []}
+	d = _to_design(details)
+	steps = _find_nodes_by_name(d, params["stepName"], int(params.get("maxMatches", 5)))
+	return {"steps": steps}
+
+
+def _extract_sql_and_params(node: dict[str, Any]) -> dict[str, Any]:
+	sql_keys = ["sql", "statement", "query", "select", "insert", "update", "delete"]
+	param_keys = [
+		"parameters",
+		"templateParameters",
+		"connectivityProperties",
+		"request",
+		"response",
+		"payload",
+		"binding",
+	]
+	found_sql: list[str] = []
+	found_params: dict[str, Any] = {}
+
+	for k, v in _walk(node):
+		if isinstance(k, str):
+			lk = k.lower()
+			if any(sk in lk for sk in sql_keys) and isinstance(v, str):
+				# Keep distinct snippets
+				snip = v.strip()
+				if snip and snip not in found_sql:
+					found_sql.append(snip)
+			if k in param_keys and v is not None:
+				found_params.setdefault(k, v)
+	return {"sql": found_sql[:5], "parameters": found_params}
+
+
+async def _call_summarize_step_io(params: dict[str, Any]) -> Any:
+	details = await oic.get_integration(params["identifier"], params.get("version"))
+	if not isinstance(details, dict):
+		return {"step": {}, "io": {}}
+	d = _to_design(details)
+	steps = _find_nodes_by_name(d, params["stepName"], 1)
+	if not steps:
+		return {"step": {}, "io": {}}
+	step = steps[0]
+	# Try to infer associated endpoint by matching name
+	endpoints = d.get("endPoints") or []
+	ep = next((e for e in endpoints if str(e.get("name")).lower() == params["stepName"].lower()), None)
+	io = _extract_sql_and_params(step)
+	if ep:
+		conn = ep.get("connection") or {}
+		io["connection"] = {
+			"connectionId": conn.get("id"),
+			"adapter": conn.get("adapter") or conn.get("type"),
+			"role": ep.get("role"),
+		}
+	return {"step": {"name": step.get("name"), "type": step.get("type"), "role": step.get("role")}, "io": io}
+
+
 TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"list_integrations": _call_list_integrations,
 	"get_integration": _call_get_integration,
@@ -529,4 +655,7 @@ TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"get_library": _call_get_library,
 	"get_adapter": _call_get_adapter,
 	"search_json": _call_search_json,
+	"list_endpoints": _call_list_endpoints,
+	"get_integration_step": _call_get_integration_step,
+	"summarize_step_io": _call_summarize_step_io,
 } 

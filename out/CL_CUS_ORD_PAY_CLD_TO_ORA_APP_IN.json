@@ -1,0 +1,537 @@
+{
+  "activationStatus": "ACTIVATION_SUCCEEDED",
+  "apiDeploymentInprogress": false,
+  "apipId": "",
+  "code": "CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN",
+  "compatible": true,
+  "created": "2025-05-07T09:15:44.352+0000",
+  "createdBy": "jamuna.sellappan@in.ey.com",
+  "dependencies": {
+    "certificates": [],
+    "connections": [
+      {
+        "displayName": "REST",
+        "id": "CL_REST_CONN",
+        "lockedFlag": false,
+        "name": "CL_REST_CONN",
+        "replaySupport": true,
+        "role": "SOURCE_AND_TARGET",
+        "status": "CONFIGURED",
+        "type": "rest",
+        "usage": 286,
+        "validateJsonPayloadSupport": true
+      },
+      {
+        "displayName": "Oracle ATP",
+        "id": "CL_ATP_DB_CONN",
+        "lockedFlag": false,
+        "name": "CL_ATP_DB_CONN",
+        "replaySupport": false,
+        "role": "SOURCE_AND_TARGET",
+        "status": "CONFIGURED",
+        "type": "atpdatabase",
+        "usage": 792,
+        "validateJsonPayloadSupport": false
+      }
+    ],
+    "libraries": [],
+    "lookups": [
+      {
+        "lockedBy": "amitesh.1@in.ey.com",
+        "lockedDate": "2025-07-25T05:36:33.866+0000",
+        "lockedFlag": true,
+        "name": "CL_OIC_CRED_LKP",
+        "status": "CONFIGURED",
+        "usage": 16
+      },
+      {
+        "lockedFlag": false,
+        "name": "CL_COUNTRY_CODE_LKP",
+        "status": "CONFIGURED",
+        "usage": 5
+      }
+    ]
+  },
+  "endPointURI": "https://caratlane-oic-test-bmdzqmmqkmi3-bo.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/flows/rest/CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN/1.0/metadata",
+  "endPoints": [
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_REST_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_REST_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_REST_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "Trigger",
+      "role": "SOURCE"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "insertCustomerHeader",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "insertCustomerSite",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "InsertOrderHeader",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "InsertItemDetails",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "insertOrderQuantiy",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "insertItemPrice",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "insertPaymentHeader",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "insertPaymentReceipt",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "PRESEEDED_COLLOCATED_CONN_1741",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/PRESEEDED_COLLOCATED_CONN_1741?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/PRESEEDED_COLLOCATED_CONN_1741?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "CallErrorNotificationIntg",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "getCustSequenceId",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "getOrdSequenceId",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "getPmtSequenceId",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "getLineSequence",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "insertJsonData",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "validateInput",
+      "role": "TARGET"
+    },
+    {
+      "connection": {
+        "agentRequired": false,
+        "agentSupported": false,
+        "id": "CL_ATP_DB_CONN",
+        "links": [
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "self"
+          },
+          {
+            "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/connections/CL_ATP_DB_CONN?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+            "rel": "canonical"
+          }
+        ],
+        "privateEndpoint": false,
+        "privateEndpointSupported": false,
+        "testStatus": false
+      },
+      "name": "insertHold",
+      "role": "TARGET"
+    }
+  ],
+  "id": "CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN|01.00.0002",
+  "isCloneAllowed": false,
+  "isViewAllowed": false,
+  "keywords": "",
+  "lastUpdated": "2025-08-06T08:23:54.159+0000",
+  "lastUpdatedBy": "anusha.b5@in.ey.com",
+  "links": [
+    {
+      "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/integrations/CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN%7C01.00.0002?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+      "rel": "self"
+    },
+    {
+      "href": "https://design.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/integrations/CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN%7C01.00.0002?integrationInstance=caratlane-oic-test-bmdzqmmqkmi3-bo",
+      "rel": "canonical"
+    }
+  ],
+  "lockedFlag": false,
+  "name": "CL_CUS_ORD_PAY_CLDB_TO_ORACLE_APP_INTG",
+  "packageName": "XXCL_OIC_INTEGRATION_PKG",
+  "pattern": "Orchestration",
+  "patternDescription": "Orchestration",
+  "payload": {
+    "defaultValue": false,
+    "schema": "json",
+    "supported": true,
+    "validate": false
+  },
+  "payloadTracingEnabledFlag": false,
+  "percentageComplete": 100,
+  "projectType": "DEVELOPED",
+  "recordEnabledFlag": false,
+  "replay": {
+    "canReplay": false,
+    "defaultValue": false,
+    "supported": true
+  },
+  "scheduleApplicableFlag": false,
+  "scheduleDefinedFlag": false,
+  "smartTags": "app:rest, app:atpdatabase, app:integration,style:app driven orchestration",
+  "softDeactivated": false,
+  "status": "ACTIVATED",
+  "style": "FREEFORM",
+  "styleDescription": "Orchestration",
+  "submitNowURI": "https://caratlane-oic-test-bmdzqmmqkmi3-bo.integration.ap-mumbai-1.ocp.oraclecloud.com/ic/api/integration/v1/flows/rest/CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN/1.0/metadata",
+  "tempCopyExists": false,
+  "totalEndPoints": 0,
+  "tracingEnabledFlag": false,
+  "trackingInstanceName": "customer_ref_id",
+  "trackingVariables": [
+    {
+      "role": "tracking_var_1",
+      "primary": true,
+      "name": "customer_ref_id",
+      "xpath": "/execute/request-wrapper/customer/customer_ref_id",
+      "messageContextRef": {
+        "property": [],
+        "refUri": "messagecontext_18"
+      },
+      "property": [],
+      "output": {
+        "messageContextRef": {
+          "property": [],
+          "refUri": "messagecontext_7"
+        },
+        "name": "output_8"
+      }
+    },
+    {
+      "role": "tracking_var_2",
+      "primary": false,
+      "name": "source_order_no",
+      "xpath": "/execute/request-wrapper/order/source_order_no",
+      "messageContextRef": {
+        "property": [],
+        "refUri": "messagecontext_18"
+      },
+      "property": [],
+      "output": {
+        "messageContextRef": {
+          "property": [],
+          "refUri": "messagecontext_9"
+        },
+        "name": "output_10"
+      }
+    },
+    {
+      "role": "tracking_var_3",
+      "primary": false,
+      "name": "customer_acct_num",
+      "xpath": "/execute/request-wrapper/order_payment/customer_acct_num",
+      "messageContextRef": {
+        "property": [],
+        "refUri": "messagecontext_18"
+      },
+      "property": [],
+      "output": {
+        "messageContextRef": {
+          "property": [],
+          "refUri": "messagecontext_11"
+        },
+        "name": "output_12"
+      }
+    }
+  ],
+  "version": "01.00.0002"
+}
