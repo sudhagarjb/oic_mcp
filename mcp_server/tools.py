@@ -286,6 +286,18 @@ def tool_definitions() -> list[dict[str, Any]]:
 				["identifier"],
 			),
 		},
+		{
+			"name": "summarize_integration_with_steps",
+			"description": "Summarize integration plus selected steps (names) with I/O summaries inline.",
+			"inputSchema": _schema_obj(
+				{
+					"identifier": {"type": "string"},
+					"version": {"type": "string"},
+					"stepNames": {"type": "array", "items": {"type": "string"}},
+				},
+				["identifier", "stepNames"],
+			),
+		},
 	]
 
 
@@ -584,21 +596,45 @@ async def _call_list_endpoints(params: dict[str, Any]) -> Any:
 
 def _find_nodes_by_name(d: Any, name: str, max_matches: int) -> list[dict[str, Any]]:
 	results: list[dict[str, Any]] = []
+	needle = name.lower()
 	for k, v in _walk(d):
-		if isinstance(v, dict) and str(v.get("name", "")).lower() == name.lower():
-			results.append(v)
-			if len(results) >= max_matches:
-				break
+		if isinstance(v, dict):
+			nm = str(v.get("name", ""))
+			if nm and nm.lower() == needle:
+				results.append(v)
+				if len(results) >= max_matches:
+					break
+	return results
+
+
+def _find_nodes_fuzzy(d: Any, name: str, max_matches: int) -> list[dict[str, Any]]:
+	results: list[dict[str, Any]] = []
+	needle = name.lower()
+	for k, v in _walk(d):
+		if isinstance(v, dict):
+			nm = str(v.get("name", ""))
+			if nm and needle in nm.lower():
+				results.append(v)
+				if len(results) >= max_matches:
+					break
 	return results
 
 
 async def _call_get_integration_step(params: dict[str, Any]) -> Any:
 	details = await oic.get_integration(params["identifier"], params.get("version"))
 	if not isinstance(details, dict):
-		return {"steps": []}
+		return {"steps": [], "endpoints": []}
 	d = _to_design(details)
 	steps = _find_nodes_by_name(d, params["stepName"], int(params.get("maxMatches", 5)))
-	return {"steps": steps}
+	# Fuzzy fallback
+	if not steps:
+		steps = _find_nodes_fuzzy(d, params["stepName"], int(params.get("maxMatches", 5)))
+	endpoints = []
+	for ep in (d.get("endPoints") or []):
+		nm = str(ep.get("name", ""))
+		if nm and params["stepName"].lower() in nm.lower():
+			endpoints.append(ep)
+	return {"steps": steps, "endpoints": endpoints}
 
 
 def _extract_sql_and_params(node: dict[str, Any]) -> dict[str, Any]:
@@ -719,6 +755,21 @@ async def _call_deep_flow_outline(params: dict[str, Any]) -> Any:
 	return {"outline": _outline_from_design(d)}
 
 
+async def _call_summarize_integration_with_steps(params: dict[str, Any]) -> Any:
+	base = await _call_summarize_integration(params)
+	names: List[str] = params.get("stepNames") or []
+	step_summaries: list[dict[str, Any]] = []
+	for nm in names:
+		sub = await _call_summarize_step_io({
+			"identifier": params["identifier"],
+			"version": params.get("version"),
+			"stepName": nm,
+		})
+		step_summaries.append({"name": nm, "data": sub})
+	base["steps"] = step_summaries
+	return base
+
+
 TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"list_integrations": _call_list_integrations,
 	"get_integration": _call_get_integration,
@@ -752,4 +803,5 @@ TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"summarize_step_io": _call_summarize_step_io,
 	"export_integration": _call_export_integration,
 	"deep_flow_outline": _call_deep_flow_outline,
+	"summarize_integration_with_steps": _call_summarize_integration_with_steps,
 } 
