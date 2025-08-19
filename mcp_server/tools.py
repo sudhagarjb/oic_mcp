@@ -1,5 +1,7 @@
 from __future__ import annotations
 from typing import Any, Awaitable, Callable, Dict, List
+import json
+import os
 
 from .oic_client import oic_client_singleton as oic
 
@@ -190,6 +192,7 @@ def tool_definitions() -> list[dict[str, Any]]:
 				{
 					"identifier": {"type": "string"},
 					"version": {"type": "string"},
+					"designJsonPath": {"type": "string", "description": "Optional path to local design JSON file"},
 				},
 				["identifier"],
 			),
@@ -233,6 +236,7 @@ def tool_definitions() -> list[dict[str, Any]]:
 				{
 					"identifier": {"type": "string"},
 					"version": {"type": "string"},
+					"designJsonPath": {"type": "string", "description": "Optional path to local design JSON file"},
 				},
 				["identifier"],
 			),
@@ -244,6 +248,7 @@ def tool_definitions() -> list[dict[str, Any]]:
 				{
 					"identifier": {"type": "string"},
 					"version": {"type": "string"},
+					"designJsonPath": {"type": "string", "description": "Optional path to local design JSON file"},
 					"stepName": {"type": "string"},
 					"maxMatches": {"type": "integer", "minimum": 1, "maximum": 50, "default": 5},
 				},
@@ -257,6 +262,7 @@ def tool_definitions() -> list[dict[str, Any]]:
 				{
 					"identifier": {"type": "string"},
 					"version": {"type": "string"},
+					"designJsonPath": {"type": "string", "description": "Optional path to local design JSON file"},
 					"stepName": {"type": "string"},
 				},
 				["identifier", "stepName"],
@@ -282,6 +288,7 @@ def tool_definitions() -> list[dict[str, Any]]:
 				{
 					"identifier": {"type": "string"},
 					"version": {"type": "string"},
+					"designJsonPath": {"type": "string", "description": "Optional path to local design JSON file"},
 				},
 				["identifier"],
 			),
@@ -293,6 +300,7 @@ def tool_definitions() -> list[dict[str, Any]]:
 				{
 					"identifier": {"type": "string"},
 					"version": {"type": "string"},
+					"designJsonPath": {"type": "string", "description": "Optional path to local design JSON file"},
 					"stepNames": {"type": "array", "items": {"type": "string"}},
 				},
 				["identifier", "stepNames"],
@@ -535,10 +543,12 @@ async def _call_summarize_flow_controls(params: dict[str, Any]) -> Any:
 
 
 async def _call_summarize_mappings(params: dict[str, Any]) -> Any:
-	details = await oic.get_integration(params["identifier"], params.get("version"))
-	if not isinstance(details, dict):
-		return {"mappings": {}, "raw": details}
-	d = details.get("content", details)
+	d = _load_design_from_params(params)
+	if not d:
+		details = await oic.get_integration(params["identifier"], params.get("version"))
+		if not isinstance(details, dict):
+			return {"mappings": {}, "raw": details}
+		d = details.get("content", details)
 	return _collect_mappings(d)
 
 
@@ -577,11 +587,27 @@ def _to_design(d: dict[str, Any]) -> dict[str, Any]:
 	return d.get("content", d)
 
 
+def _load_design_from_params(params: dict[str, Any]) -> dict[str, Any] | None:
+	path = params.get("designJsonPath")
+	if not path:
+		return None
+	try:
+		# Resolve relative to project root if needed
+		resolved = os.path.expanduser(path)
+		with open(resolved, "r", encoding="utf-8") as f:
+			data = json.load(f)
+		return _to_design(data if isinstance(data, dict) else {})
+	except Exception:
+		return {}
+
+
 async def _call_list_endpoints(params: dict[str, Any]) -> Any:
-	details = await oic.get_integration(params["identifier"], params.get("version"))
-	if not isinstance(details, dict):
-		return {"endPoints": []}
-	d = _to_design(details)
+	d = _load_design_from_params(params)
+	if not d:
+		details = await oic.get_integration(params["identifier"], params.get("version"))
+		if not isinstance(details, dict):
+			return {"endPoints": []}
+		d = _to_design(details)
 	eps = []
 	for ep in d.get("endPoints", []) or []:
 		conn = ep.get("connection") or {}
@@ -621,10 +647,12 @@ def _find_nodes_fuzzy(d: Any, name: str, max_matches: int) -> list[dict[str, Any
 
 
 async def _call_get_integration_step(params: dict[str, Any]) -> Any:
-	details = await oic.get_integration(params["identifier"], params.get("version"))
-	if not isinstance(details, dict):
-		return {"steps": [], "endpoints": []}
-	d = _to_design(details)
+	d = _load_design_from_params(params)
+	if not d:
+		details = await oic.get_integration(params["identifier"], params.get("version"))
+		if not isinstance(details, dict):
+			return {"steps": [], "endpoints": []}
+		d = _to_design(details)
 	steps = _find_nodes_by_name(d, params["stepName"], int(params.get("maxMatches", 5)))
 	# Fuzzy fallback
 	if not steps:
@@ -665,10 +693,12 @@ def _extract_sql_and_params(node: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _call_summarize_step_io(params: dict[str, Any]) -> Any:
-	details = await oic.get_integration(params["identifier"], params.get("version"))
-	if not isinstance(details, dict):
-		return {"step": {}, "io": {}}
-	d = _to_design(details)
+	d = _load_design_from_params(params)
+	if not d:
+		details = await oic.get_integration(params["identifier"], params.get("version"))
+		if not isinstance(details, dict):
+			return {"step": {}, "io": {}}
+		d = _to_design(details)
 	steps = _find_nodes_by_name(d, params["stepName"], 1)
 	endpoints = d.get("endPoints") or []
 	ep = next((e for e in endpoints if str(e.get("name")).lower() == params["stepName"].lower()), None)
@@ -748,10 +778,12 @@ def _outline_from_design(d: dict[str, Any]) -> list[str]:
 
 
 async def _call_deep_flow_outline(params: dict[str, Any]) -> Any:
-	details = await oic.get_integration(params["identifier"], params.get("version"))
-	if not isinstance(details, dict):
-		return {"outline": []}
-	d = _to_design(details)
+	d = _load_design_from_params(params)
+	if not d:
+		details = await oic.get_integration(params["identifier"], params.get("version"))
+		if not isinstance(details, dict):
+			return {"outline": []}
+		d = _to_design(details)
 	return {"outline": _outline_from_design(d)}
 
 
@@ -763,6 +795,7 @@ async def _call_summarize_integration_with_steps(params: dict[str, Any]) -> Any:
 		sub = await _call_summarize_step_io({
 			"identifier": params["identifier"],
 			"version": params.get("version"),
+			"designJsonPath": params.get("designJsonPath"),
 			"stepName": nm,
 		})
 		step_summaries.append({"name": nm, "data": sub})
