@@ -12,4 +12,7 @@ coverage/
 htmlcov/
 *.log
 .idea/
-.vscode/ 
+.vscode/
+# Project outputs
+out/
+uvicorn.log 
