@@ -22,19 +22,28 @@ class OAuth2Token:
 class OICClient:
     def __init__(self) -> None:
         self._token: Optional[OAuth2Token] = None
-        retry = httpx.Retry(max_tries=max(1, settings.http_max_retries + 1))
-        limits = httpx.Limits(max_keepalive_connections=10, max_connections=20)
-        self._client = httpx.AsyncClient(
-            timeout=settings.http_timeout_secs,
-            limits=limits,
-            transport=httpx.AsyncHTTPTransport(retries=retry),
-        )
+        self._client: Optional[httpx.AsyncClient] = None
         self._lock = asyncio.Lock()
 
+    def _create_client(self) -> httpx.AsyncClient:
+        limits = httpx.Limits(max_keepalive_connections=10, max_connections=20)
+        return httpx.AsyncClient(
+            timeout=settings.http_timeout_secs,
+            limits=limits,
+            follow_redirects=True,
+        )
+
+    def _ensure_client(self) -> None:
+        if self._client is None:
+            self._client = self._create_client()
+
     async def aclose(self) -> None:
-        await self._client.aclose()
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     async def _ensure_token(self) -> str:
+        self._ensure_client()
         async with self._lock:
             if self._token is not None and not self._token.is_expired():
                 return self._token.access_token
@@ -45,7 +54,12 @@ class OICClient:
             }
             if settings.oauth_scope:
                 data["scope"] = settings.oauth_scope
-            resp = await self._client.post(settings.oauth_token_url, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"})
+            assert self._client is not None
+            resp = await self._client.post(
+                settings.oauth_token_url,
+                data=data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
             resp.raise_for_status()
             payload = resp.json()
             access_token = payload.get("access_token")
@@ -56,11 +70,20 @@ class OICClient:
             self._token = OAuth2Token(access_token=access_token, expires_in=expires_in, token_type=token_type)
             return self._token.access_token
 
+    def _with_instance_param(self, params: Optional[dict[str, Any]]) -> dict[str, Any] | None:
+        params = dict(params or {})
+        from .settings import settings as _s
+        if _s.oic_instance_name:
+            params.setdefault("integrationInstance", _s.oic_instance_name)
+        return params or None
+
     async def _get(self, path: str, params: Optional[dict[str, Any]] = None) -> Dict[str, Any] | Any:
+        self._ensure_client()
         token = await self._ensure_token()
         url = f"{settings.oic_base_url}{path}"
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-        resp = await self._client.get(url, headers=headers, params=params)
+        assert self._client is not None
+        resp = await self._client.get(url, headers=headers, params=self._with_instance_param(params))
         resp.raise_for_status()
         if resp.headers.get("Content-Type", "").startswith("application/json"):
             return resp.json()
