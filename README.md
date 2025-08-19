@@ -70,7 +70,7 @@ References:
 4. Run the server (defaults to ws://127.0.0.1:8085/ws)
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 # cp .env.example .env  # example file in repo; fill values
@@ -82,22 +82,47 @@ WebSocket endpoint: `ws://127.0.0.1:8085/ws`
 Example client calls:
 ```bash
 # Initialize
-python scripts/ws-call.py initialize
+python3 scripts/ws-call.py initialize
 
-# Tools list
-python scripts/ws-call.py tools/list
+# Tools list (shows all available tools)
+python3 scripts/ws-call.py tools/list
+
+# List first 3 integrations
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":3}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print(json.dumps(j['result']['content']['items'][:3], indent=2))"
 
 # Search integrations for "order" and "customer"
-python scripts/ws-call.py tools/call '{"name":"list_integrations_search","arguments":{"terms":["order","customer"],"perPage":100,"maxPages":30}}'
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations_search","arguments":{"terms":["order","customer"],"perPage":100,"maxPages":30}}'
+
+# Get integration details (auto-resolves latest version)
+python3 scripts/ws-call.py tools/call '{"name":"get_integration_auto","arguments":{"identifier":"CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN"}}'
 
 # Summarize an integration and key steps (auto resolves latest)
-python scripts/ws-call.py tools/call '{"name":"summarize_integration_with_steps","arguments":{"identifier":"CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN","stepNames":["insertJsonData","InsertOrderHeader"]}}'
+python3 scripts/ws-call.py tools/call '{"name":"summarize_integration_with_steps","arguments":{"identifier":"CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN","stepNames":["insertJsonData","InsertOrderHeader"]}}'
 
 # Use a local design JSON for step I/O summary (offline)
-python scripts/ws-call.py tools/call '{"name":"summarize_step_io","arguments":{"identifier":"CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN","designJsonPath":"out/CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN.json","stepName":"insertJsonData"}}'
+python3 scripts/ws-call.py tools/call '{"name":"summarize_step_io","arguments":{"identifier":"CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN","designJsonPath":"out/CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN.json","stepName":"insertJsonData"}}'
 
 # Export an integration archive and list entries only
-python scripts/ws-call.py tools/call '{"name":"export_integration","arguments":{"identifier":"CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN","listOnly":true}}'
+python3 scripts/ws-call.py tools/call '{"name":"export_integration","arguments":{"identifier":"CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN","listOnly":true}}'
+
+# Get flow controls summary
+python3 scripts/ws-call.py tools/call '{"name":"summarize_flow_controls","arguments":{"identifier":"CL_CUS_ORD_PAY_CLD_TO_ORA_APP_IN"}}'
+
+# List connections
+python3 scripts/ws-call.py tools/call '{"name":"list_connections","arguments":{"limit":5}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print(json.dumps(j['result']['content']['items'][:3], indent=2))"
+```
+
+**Note**: All responses are in JSON format. 
+- For `tools/list`, the structure is `{"jsonrpc": "2.0", "id": 1, "result": {"tools": [...]}}`
+- For tool calls like `list_integrations`, the structure is `{"jsonrpc": "2.0", "id": 1, "result": {"content": {"items": [...], "totalResults": N, "hasMore": bool}}}`
+
+**Example JSON parsing:**
+```bash
+# Get first 2 integrations
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print(json.dumps(j['result']['content']['items'][:2], indent=2))"
+
+# Get total count
+python3 scripts/ws-call.py tools/call '{"name":"list_integrations","arguments":{"limit":2}}' | python3 -c "import json,sys; j=json.load(sys.stdin); print('Total integrations:', j['result']['content']['totalResults'])"
 ```
 
 ## Configuration (.env)
