@@ -15,6 +15,54 @@ References:
 - Local design JSON override (`designJsonPath`) for offline testing of step/mapping/outline tools
 - 20+ read-only tools (see Tools)
 
+### How it works (high level)
+- The server exposes a WebSocket endpoint that speaks JSON-RPC 2.0 (MCP). Clients call `tools/list` to discover tools and `tools/call` to execute them.
+- On each tool call, the server fetches data from OIC REST APIs using an authenticated `httpx.AsyncClient`. The OAuth token is obtained via Client Credentials, cached, and refreshed on expiry.
+- All outputs are JSON, with additional summaries to help LLMs consume complex payloads.
+- For very large resources or offline testing, many tools accept a `designJsonPath` to read a previously downloaded integration JSON file from disk instead of calling OIC.
+
+### Authentication flow
+- Uses OAuth2 Client Credentials:
+  - Token request: `OAUTH_TOKEN_URL` with `client_id`, `client_secret`, and optional `scope`.
+  - Access token stored in memory and reused until expiry, then refreshed automatically.
+  - No credentials are logged; errors include only minimal context.
+
+### HTTP client behavior
+- `httpx.AsyncClient` with:
+  - `follow_redirects=True` to handle OIC 307 redirects between instance and design hosts.
+  - Configurable timeouts (`HTTP_TIMEOUT_SECS`).
+  - Lightweight retry policy (idempotent GETs are retried a small number of times; respects `HTTP_MAX_RETRIES`).
+- All OIC calls attach `integrationInstance=<OIC_INSTANCE_NAME>` automatically when provided.
+
+### Instance scoping (`OIC_INSTANCE_NAME`)
+- When set, any request to OIC adds `?integrationInstance=<value>` to scope to a specific Integration instance.
+- This avoids cross-instance ambiguity and matches behavior of the OIC console URLs.
+
+### Search and paging
+- `list_integrations_search` performs client-side paging over the catalog, filtering by user terms across fields (`code`, `name`, `description`, `keywords`).
+- This keeps WebSocket payloads small and lets you control breadth via `perPage` and `maxPages`.
+
+### Design-time analysis tooling
+- `get_integration_auto` retrieves complete design JSON (resolving latest version when omitted).
+- `summarize_integration` extracts trigger/targets/tracking variables.
+- `summarize_flow_controls` and `deep_flow_outline` scan the design tree to surface control flow and provide quick textual plans.
+- `summarize_mappings` lists mapping steps to guide deeper inspection.
+
+### Step and endpoint matching
+- `get_integration_step` searches the design tree for nodes whose `name` matches a provided `stepName` (exact and fuzzy). It also returns endpoints with a matching name.
+- `summarize_step_io` extracts suspected SQL/query snippets and parameters from a step node. If no node is found, it falls back to a matching endpoint and returns its connection context (so you never get empty/unhelpful output).
+- Both tools accept `designJsonPath` for offline analysis.
+
+### Export integration archives
+- `export_integration` downloads the integration zip archive and returns:
+  - `base64`: the full archive, base64-encoded (for LLM-safe transport).
+  - `listOnly=true`: return only the entry list plus small previews (text) up to `maxPreviewBytes`.
+- This enables deeper static analysis or archival in downstream systems.
+
+### JSON-first outputs
+- All tools return JSON objects; text bodies are wrapped as fields.
+- Summaries present structured, small-footprint overviews ideal for LLMs.
+
 ## Quickstart
 1. Clone the repo and enter the directory
 2. Create and populate `.env` from `.env.example`
@@ -69,6 +117,18 @@ OAUTH_CLIENT_SECRET=
 OAUTH_SCOPE=
 
 # Optional HTTP settings
+HTTP_TIMEOUT_SECS=30
+HTTP_MAX_RETRIES=2
+```
+
+Example `.env` (inline):
+```ini
+OIC_BASE_URL=https://caratlane-oic-test-bmdzqmmqkmi3-bo.integration.ap-mumbai-1.ocp.oraclecloud.com
+OIC_INSTANCE_NAME=caratlane-oic-test-bmdzqmmqkmi3-bo
+OAUTH_TOKEN_URL=https://<idcs-tenant>.identity.oraclecloud.com/oauth2/v1/token
+OAUTH_CLIENT_ID=xxxxxxxxxxxxxxxx
+OAUTH_CLIENT_SECRET=yyyyyyyyyyyyyyyy
+OAUTH_SCOPE="urn:opc:idm:__myscopes__"  # optional; quote if multi-line
 HTTP_TIMEOUT_SECS=30
 HTTP_MAX_RETRIES=2
 ```
@@ -152,12 +212,24 @@ You can connect via WebSocket URL or have a client spawn the server.
 }
 ```
 
+### Passing envs from `mcp.json`
+- For command-type servers, populate the `env` object as shown. This fully avoids `.env` files and is ideal for editor-integrated MCP clients.
+- For websocket-type servers, start the server with `.env` or process envs, then point the client to the URL.
+
 ## Production hardening
 - Run behind TLS (reverse proxy like Nginx/Traefik) and restrict network access.
 - Store secrets in a vault. Avoid committing `.env`.
 - Set minimal OAuth client privileges for read-only.
-- Consider Docker for immutable deployments.
-- Monitor process and WebSocket payload sizes; use client-side paging for large lists.
+- Consider Docker for immutable deployments and CI/CD.
+- Monitor process/WebSocket payload sizes; use client-side paging for large lists.
+- Enable access logs and metrics on your reverse proxy.
+
+## Operations & troubleshooting
+- Health check: GET `/healthz` returns `{ "status": "ok" }`.
+- Startup issues: verify `.env` values and token URL reachability.
+- 401/403: validate client credentials and scope; some tenants require scope.
+- 404 on certain flow paths: prefer design-time `get_integration_auto` and analysis tools.
+- Large responses: narrow with search terms and paging; avoid returning entire catalogs to LLMs.
 
 ## Docker (optional)
 ```bash
