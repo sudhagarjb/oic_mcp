@@ -189,8 +189,8 @@ HTTP_MAX_RETRIES=2
 
 Example `.env` (inline):
 ```ini
-OIC_BASE_URL=https://caratlane-oic-test-bmdzqmmqkmi3-bo.integration.ap-mumbai-1.ocp.oraclecloud.com
-OIC_INSTANCE_NAME=caratlane-oic-test-bmdzqmmqkmi3-bo
+OIC_BASE_URL=https://<your-instance>.integration.<region>.ocp.oraclecloud.com
+OIC_INSTANCE_NAME=<your-instance-name>
 OAUTH_TOKEN_URL=https://<idcs-tenant>.identity.oraclecloud.com/oauth2/v1/token
 OAUTH_CLIENT_ID=xxxxxxxxxxxxxxxx
 OAUTH_CLIENT_SECRET=yyyyyyyyyyyyyyyy
