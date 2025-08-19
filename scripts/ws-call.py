@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, json, asyncio
+import sys, json, asyncio, os
 import websockets
 
 USAGE = """
@@ -15,7 +15,7 @@ Examples:
   python scripts/ws-call.py tools/call '{"name":"list_integrations_search","arguments":{"terms":["order","customer"],"perPage":100,"maxPages":30}}'
 """
 
-HOST = "ws://127.0.0.1:8080/ws"
+HOST = os.environ.get("MCP_WS_URL", "ws://127.0.0.1:8085/ws")
 
 async def main():
 	if len(sys.argv) < 2:
