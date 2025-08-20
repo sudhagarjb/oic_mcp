@@ -366,6 +366,82 @@ class OICClient:
     async def get_connection(self, identifier: str) -> Any:
         return await self._get(f"/ic/api/integration/v1/connections/{identifier}")
 
+    # New simple integration functions (similar to connections)
+    async def list_integrations_simple(self, limit: int | None = None) -> Any:
+        """Simple function to list integrations with optional limit, similar to list_connections"""
+        params: dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        return await self._get("/ic/api/integration/v1/integrations", params=params or None)
+
+    async def get_integration_simple(self, identifier: str) -> Any:
+        """Simple function to get a specific integration by identifier, similar to get_connection"""
+        return await self._get(f"/ic/api/integration/v1/integrations/{identifier}")
+
+    async def search_integration_by_name(self, name: str, limit: int | None = None) -> Any:
+        """Search for integration by name using the simple list function with pagination"""
+        logger.info(f"Searching for integration by name: {name}")
+        
+        # Search through multiple pages to find the integration
+        page = 1
+        max_pages = 10  # Search through up to 10 pages
+        per_page = limit or 100
+        
+        while page <= max_pages:
+            logger.info(f"Searching page {page}/{max_pages}")
+            
+            # Get integrations for this page
+            params = {"limit": per_page, "page": page}
+            result = await self._get("/ic/api/integration/v1/integrations", params=params)
+            
+            if isinstance(result, dict) and "items" in result:
+                integrations = result["items"]
+                total_results = result.get("totalResults", 0)
+                has_more = result.get("hasMore", False)
+                
+                logger.info(f"Page {page}: found {len(integrations)} integrations, total: {total_results}, hasMore: {has_more}")
+                
+                if not integrations:
+                    logger.info(f"No more integrations found on page {page}")
+                    break
+                
+                # Search for exact match first
+                for integration in integrations:
+                    code = integration.get("code", "")
+                    integration_name = integration.get("name", "")
+                    
+                    if (name.lower() == code.lower() or 
+                        name.lower() == integration_name.lower()):
+                        logger.info(f"Found exact match: {code} ({integration_name})")
+                        return integration
+                
+                # Search for partial matches
+                matches = []
+                for integration in integrations:
+                    code = integration.get("code", "")
+                    integration_name = integration.get("name", "")
+                    
+                    if (name.lower() in code.lower() or 
+                        name.lower() in integration_name.lower()):
+                        matches.append(integration)
+                
+                if matches:
+                    logger.info(f"Found {len(matches)} partial matches for '{name}' on page {page}")
+                    return matches
+                
+                # Check if there are more pages
+                if not has_more:
+                    logger.info(f"No more pages to search (hasMore: {has_more})")
+                    break
+                
+                page += 1
+            else:
+                logger.warning(f"Unexpected response format on page {page}")
+                break
+        
+        logger.warning(f"No integration found with name: {name} after searching {page-1} pages")
+        return None
+
     async def list_schedules(self, limit: int | None = None) -> Any:
         params: dict[str, Any] = {}
         if limit is not None:

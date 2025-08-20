@@ -101,6 +101,27 @@ def tool_definitions() -> list[dict[str, Any]]:
 			"inputSchema": _schema_obj({"identifier": {"type": "string"}}, ["identifier"]),
 		},
 		{
+			"name": "list_integrations_simple",
+			"description": "List integrations with simple pagination (similar to connections)",
+			"inputSchema": _schema_obj({"limit": {"type": "integer", "minimum": 1, "maximum": 1000}}),
+		},
+		{
+			"name": "get_integration_simple",
+			"description": "Get a specific integration by identifier (similar to get_connection)",
+			"inputSchema": _schema_obj({"identifier": {"type": "string"}}, ["identifier"]),
+		},
+		{
+			"name": "search_integration_by_name",
+			"description": "Search for integration by name using simple list function",
+			"inputSchema": _schema_obj(
+				{
+					"name": {"type": "string", "description": "Integration name or code to search for"},
+					"limit": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "Limit for initial fetch"},
+				},
+				["name"]
+			),
+		},
+		{
 			"name": "list_activated_integrations",
 			"description": "List only activated integrations",
 			"inputSchema": _schema_obj({"limit": {"type": "integer", "minimum": 1, "maximum": 1000}, "page": {"type": "integer", "minimum": 1}}),
@@ -444,6 +465,45 @@ async def _call_list_connections(params: dict[str, Any]) -> Any:
 
 async def _call_get_connection(params: dict[str, Any]) -> Any:
 	return await oic.get_connection(params["identifier"])
+
+
+async def _call_list_integrations_simple(params: dict[str, Any]) -> Any:
+	"""Simple integration list function similar to connections"""
+	logger.info(f"Tool _call_list_integrations_simple called with params: {params}")
+	start_time = time.time()
+	
+	result = await oic.list_integrations_simple(limit=params.get("limit"))
+	
+	execution_time = time.time() - start_time
+	logger.info(f"Tool _call_list_integrations_simple completed in {execution_time:.2f}s")
+	return result
+
+
+async def _call_get_integration_simple(params: dict[str, Any]) -> Any:
+	"""Simple integration get function similar to get_connection"""
+	logger.info(f"Tool _call_get_integration_simple called with params: {params}")
+	start_time = time.time()
+	
+	result = await oic.get_integration_simple(params["identifier"])
+	
+	execution_time = time.time() - start_time
+	logger.info(f"Tool _call_get_integration_simple completed in {execution_time:.2f}s")
+	return result
+
+
+async def _call_search_integration_by_name(params: dict[str, Any]) -> Any:
+	"""Search for integration by name using simple function"""
+	logger.info(f"Tool _call_search_integration_by_name called with params: {params}")
+	start_time = time.time()
+	
+	result = await oic.search_integration_by_name(
+		name=params["name"],
+		limit=params.get("limit")
+	)
+	
+	execution_time = time.time() - start_time
+	logger.info(f"Tool _call_search_integration_by_name completed in {execution_time:.2f}s")
+	return result
 
 
 async def _call_list_activated_integrations(params: dict[str, Any]) -> Any:
@@ -966,6 +1026,9 @@ TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"list_integrations_comprehensive": _call_list_integrations_comprehensive,
 	"search_integrations_by_pattern": _call_search_integrations_by_pattern,
 	"get_integration": _call_get_integration,
+	"list_integrations_simple": _call_list_integrations_simple,
+	"get_integration_simple": _call_get_integration_simple,
+	"search_integration_by_name": _call_search_integration_by_name,
 	"list_packages": _call_list_packages,
 	"get_package": _call_get_package,
 	"list_connections": _call_list_connections,
