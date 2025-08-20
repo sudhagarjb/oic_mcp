@@ -47,6 +47,29 @@ def tool_definitions() -> list[dict[str, Any]]:
 			),
 		},
 		{
+			"name": "list_integrations_comprehensive",
+			"description": "Comprehensive fetch of ALL integrations using multiple approaches to ensure complete coverage. Optional: onlyActivated, maxPages, perPage",
+			"inputSchema": _schema_obj(
+				{
+					"onlyActivated": {"type": "boolean"},
+					"maxPages": {"type": "integer", "minimum": 1, "maximum": 500, "description": "Maximum pages to search (default: 200)"},
+					"perPage": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "Integrations per page (default: 100)"},
+				}
+			),
+		},
+		{
+			"name": "search_integrations_by_pattern",
+			"description": "Search integrations by pattern in code, name, or description. Args: pattern, optional maxPages, perPage",
+			"inputSchema": _schema_obj(
+				{
+					"pattern": {"type": "string", "description": "Pattern to search for in integration code, name, or description"},
+					"maxPages": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Maximum pages to search (default: 50)"},
+					"perPage": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "Integrations per page (default: 100)"},
+				},
+				["pattern"]
+			),
+		},
+		{
 			"name": "get_integration",
 			"description": "Get an integration by identifier and version",
 			"inputSchema": _schema_obj(
@@ -357,6 +380,52 @@ async def _call_list_all_integrations(params: dict[str, Any]) -> Any:
 	return {"items": all_integrations, "totalMatched": len(all_integrations)}
 
 
+async def _call_list_integrations_comprehensive(params: dict[str, Any]) -> Any:
+	logger.info(f"Tool _call_list_integrations_comprehensive called with params: {params}")
+	start_time = time.time()
+	
+	only_activated = params.get("onlyActivated")
+	max_pages = params.get("maxPages", 200)
+	per_page = params.get("perPage", 100)
+
+	logger.info(f"Starting list_integrations_comprehensive with max_pages={max_pages}, per_page={per_page}, only_activated={only_activated}")
+
+	# Use the new method that handles pagination properly
+	all_integrations = await oic.list_integrations_comprehensive(
+		only_activated=only_activated, 
+		max_pages=max_pages, 
+		per_page=per_page
+	)
+
+	execution_time = time.time() - start_time
+	logger.info(f"Tool _call_list_integrations_comprehensive completed in {execution_time:.2f}s - returned {len(all_integrations)} integrations")
+
+	return {"items": all_integrations, "totalMatched": len(all_integrations)}
+
+
+async def _call_search_integrations_by_pattern(params: dict[str, Any]) -> Any:
+	logger.info(f"Tool _call_search_integrations_by_pattern called with params: {params}")
+	start_time = time.time()
+	
+	pattern = params.get("pattern")
+	max_pages = params.get("maxPages", 50)
+	per_page = params.get("perPage", 100)
+
+	logger.info(f"Starting search_integrations_by_pattern with pattern={pattern}, max_pages={max_pages}, per_page={per_page}")
+
+	# Use the new method that handles pagination properly
+	all_integrations = await oic.search_integrations_by_pattern(
+		pattern=pattern, 
+		max_pages=max_pages, 
+		per_page=per_page
+	)
+
+	execution_time = time.time() - start_time
+	logger.info(f"Tool _call_search_integrations_by_pattern completed in {execution_time:.2f}s - returned {len(all_integrations)} integrations")
+
+	return {"items": all_integrations, "totalMatched": len(all_integrations)}
+
+
 async def _call_get_integration(params: dict[str, Any]) -> Any:
 	return await oic.get_integration(params["identifier"], params["version"])
 
@@ -443,23 +512,65 @@ async def _call_list_integrations_search(params: dict[str, Any]) -> Any:
 	only_activated = params.get("onlyActivated")
 	case_sensitive: bool = bool(params.get("caseSensitive", False))
 
-	# Use the new method that handles pagination properly
-	all_integrations = await oic.list_all_integrations(
-		only_activated=only_activated, 
-		max_pages=max_pages, 
-		per_page=per_page
-	)
+	logger.info(f"Starting list_integrations_search with terms: {terms}, max_pages: {max_pages}, per_page: {per_page}")
 
 	matched: List[dict[str, Any]] = []
-	for it in all_integrations:
-		if any(_matches_terms(it.get(f), terms, case_sensitive) for f in fields):
-			matched.append({
-				"code": it.get("code"),
-				"name": it.get("name"),
-				"version": it.get("version"),
-				"status": it.get("status"),
-			})
+	page = 1
+	
+	while page <= max_pages:
+		logger.info(f"Searching page {page}/{max_pages}")
+		
+		try:
+			# Get integrations for this page
+			data = await oic.list_integrations(
+				only_activated=only_activated, 
+				limit=per_page, 
+				page=page
+			)
+			
+			# Handle different response structures
+			items = []
+			if isinstance(data, dict):
+				if "items" in data:
+					items = data["items"]
+				elif "content" in data and isinstance(data["content"], dict):
+					items = data["content"].get("items", [])
+				elif "data" in data and isinstance(data["data"], dict):
+					items = data["data"].get("items", [])
+			
+			if not items:
+				logger.info(f"No items found on page {page}, stopping search")
+				break
+			
+			# Search through items on this page
+			for item in items:
+				if any(_matches_terms(item.get(f, ""), terms, case_sensitive) for f in fields):
+					matched.append({
+						"code": item.get("code"),
+						"name": item.get("name"),
+						"version": item.get("version"),
+						"status": item.get("status"),
+						"description": item.get("description"),
+					})
+			
+			logger.info(f"Page {page}: found {len(items)} items, {len(matched)} total matches so far")
+			
+			# Check if there are more pages
+			has_more = False
+			if isinstance(data, dict):
+				has_more = bool(data.get("hasMore")) or bool(data.get("content", {}).get("hasMore")) or bool(data.get("data", {}).get("hasMore"))
+			
+			if not has_more:
+				logger.info(f"No more pages indicated by API response")
+				break
+			
+			page += 1
+			
+		except Exception as e:
+			logger.error(f"Error searching page {page}: {e}")
+			break
 
+	logger.info(f"Search completed: found {len(matched)} matches across {page-1} pages")
 	return {"items": matched, "totalMatched": len(matched)}
 
 
@@ -852,6 +963,8 @@ async def _call_summarize_integration_with_steps(params: dict[str, Any]) -> Any:
 TOOL_HANDLERS: Dict[str, ToolHandler] = {
 	"list_integrations": _call_list_integrations,
 	"list_all_integrations": _call_list_all_integrations,
+	"list_integrations_comprehensive": _call_list_integrations_comprehensive,
+	"search_integrations_by_pattern": _call_search_integrations_by_pattern,
 	"get_integration": _call_get_integration,
 	"list_packages": _call_list_packages,
 	"get_package": _call_get_package,

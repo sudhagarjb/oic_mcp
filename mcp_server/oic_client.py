@@ -179,13 +179,27 @@ class OICClient:
                 
                 # Handle different response structures
                 items = []
+                total_results = 0
+                has_more = False
+                
                 if isinstance(data, dict):
+                    # Handle OIC API response structure
                     if "items" in data:
                         items = data["items"]
-                    elif "content" in data and isinstance(data["content"], dict) and "items" in data["content"]:
-                        items = data["content"]["items"]
-                    elif "data" in data and isinstance(data["data"], dict) and "items" in data["data"]:
-                        items = data["data"]["items"]
+                        total_results = data.get("totalResults", 0)
+                        has_more = data.get("hasMore", False)
+                    elif "content" in data and isinstance(data["content"], dict):
+                        content = data["content"]
+                        items = content.get("items", [])
+                        total_results = content.get("totalResults", 0)
+                        has_more = content.get("hasMore", False)
+                    elif "data" in data and isinstance(data["data"], dict):
+                        data_content = data["data"]
+                        items = data_content.get("items", [])
+                        total_results = data_content.get("totalResults", 0)
+                        has_more = data_content.get("hasMore", False)
+                
+                logger.info(f"Page {page}: API returned {len(items)} items, totalResults: {total_results}, hasMore: {has_more}")
                 
                 if not items:
                     logger.info(f"No items found on page {page}, stopping pagination")
@@ -215,13 +229,14 @@ class OICClient:
                 else:
                     consecutive_empty_pages = 0  # Reset counter when we find new integrations
                 
-                # Check if there are more pages
-                has_more = False
-                if isinstance(data, dict):
-                    has_more = bool(data.get("hasMore")) or bool(data.get("content", {}).get("hasMore")) or bool(data.get("data", {}).get("hasMore"))
+                # Check if we've reached the total number of results
+                if total_results > 0 and len(all_integrations) >= total_results:
+                    logger.info(f"Reached total results limit: {len(all_integrations)} >= {total_results}")
+                    break
                 
+                # Check if there are more pages
                 if not has_more:
-                    logger.info(f"No more pages indicated by API response")
+                    logger.info(f"No more pages indicated by API response (hasMore: {has_more})")
                     break
                 
                 page += 1
@@ -458,6 +473,79 @@ class OICClient:
             if e.response.status_code == 404:
                 return await self._get("/ic/api/monitoring/v1/metrics", params=params)
             raise
+
+    async def list_integrations_comprehensive(self, only_activated: bool | None = None, max_pages: int = 200, per_page: int = 100) -> list[Dict[str, Any]]:
+        """
+        Comprehensive method to fetch all integrations using multiple approaches.
+        Tries different API parameters and endpoints to ensure complete coverage.
+        """
+        logger.info(f"Starting comprehensive integration fetch - only_activated: {only_activated}, max_pages: {max_pages}, per_page: {per_page}")
+        
+        all_integrations = []
+        seen_codes = set()
+        
+        # Try different approaches to fetch integrations
+        approaches = [
+            {"only_activated": only_activated, "max_pages": max_pages, "per_page": per_page},
+            {"only_activated": None, "max_pages": max_pages, "per_page": per_page},  # Try without activation filter
+            {"only_activated": only_activated, "max_pages": max_pages, "per_page": 50},  # Try smaller page size
+            {"only_activated": None, "max_pages": max_pages, "per_page": 50},  # Try without filter and smaller page size
+        ]
+        
+        for i, approach in enumerate(approaches):
+            logger.info(f"Trying approach {i+1}/{len(approaches)}: {approach}")
+            
+            try:
+                integrations = await self.list_all_integrations(**approach)
+                
+                # Add new integrations
+                new_count = 0
+                for integration in integrations:
+                    code = integration.get("code")
+                    if code and code not in seen_codes:
+                        seen_codes.add(code)
+                        all_integrations.append(integration)
+                        new_count += 1
+                
+                logger.info(f"Approach {i+1} found {len(integrations)} integrations, {new_count} new unique")
+                
+                # If we found a significant number of integrations, we might have good coverage
+                if len(integrations) > 100:
+                    logger.info(f"Found substantial number of integrations ({len(integrations)}), this approach seems effective")
+                
+            except Exception as e:
+                logger.error(f"Approach {i+1} failed: {e}")
+                continue
+        
+        logger.info(f"Comprehensive fetch completed: {len(all_integrations)} total unique integrations found")
+        return all_integrations
+
+    async def search_integrations_by_pattern(self, pattern: str, max_pages: int = 50, per_page: int = 100) -> list[Dict[str, Any]]:
+        """
+        Search for integrations by pattern in code, name, or description.
+        This is a client-side search after fetching integrations.
+        """
+        logger.info(f"Searching integrations by pattern: {pattern}")
+        
+        # First get all integrations
+        all_integrations = await self.list_all_integrations(max_pages=max_pages, per_page=per_page)
+        
+        # Filter by pattern
+        pattern_lower = pattern.lower()
+        matched_integrations = []
+        
+        for integration in all_integrations:
+            code = integration.get("code", "").lower()
+            name = integration.get("name", "").lower()
+            description = integration.get("description", "").lower()
+            
+            if (pattern_lower in code or 
+                pattern_lower in name or 
+                pattern_lower in description):
+                matched_integrations.append(integration)
+        
+        logger.info(f"Pattern search '{pattern}' found {len(matched_integrations)} matches out of {len(all_integrations)} total integrations")
+        return matched_integrations
 
 
 oic_client_singleton = OICClient() 
